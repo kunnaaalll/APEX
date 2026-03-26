@@ -1,0 +1,25 @@
+{
+  "name": "apex",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.13.6",
+    "blessed": "^0.1.81",
+    "blessed-contrib": "^4.11.0",
+    "body-parser": "^2.2.2",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "node-telegram-bot-api": "^0.67.0",
+    "sqlite3": "^6.0.1",
+    "winston": "^3.19.0"
+  }
+}
