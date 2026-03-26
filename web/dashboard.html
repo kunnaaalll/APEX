@@ -4,572 +4,295 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>APEX — Autonomous Trading Command Center</title>
-    <meta name="description" content="APEX AI-Powered Autonomous Trading Dashboard">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-primary: #0a0e17;
-            --bg-secondary: #111827;
             --bg-card: #1a1f2e;
             --bg-card-hover: #222840;
             --border: #2a3348;
             --text-primary: #e2e8f0;
             --text-secondary: #94a3b8;
             --text-muted: #64748b;
-            --accent-green: #10b981;
-            --accent-green-glow: rgba(16, 185, 129, 0.3);
-            --accent-red: #ef4444;
-            --accent-red-glow: rgba(239, 68, 68, 0.3);
-            --accent-blue: #3b82f6;
-            --accent-blue-glow: rgba(59, 130, 246, 0.2);
-            --accent-purple: #8b5cf6;
-            --accent-yellow: #f59e0b;
-            --accent-cyan: #06b6d4;
-            --gradient-main: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            --gradient-green: linear-gradient(135deg, #10b981 0%, #059669 100%);
-            --gradient-red: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            --green: #10b981;
+            --red: #ef4444;
+            --blue: #3b82f6;
+            --purple: #8b5cf6;
+            --yellow: #f59e0b;
+            --cyan: #06b6d4;
         }
-
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Inter', sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
-            overflow-x: hidden;
             min-height: 100vh;
+            padding: 20px;
         }
 
-        /* Header */
         .header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 16px 28px;
-            background: rgba(17, 24, 39, 0.8);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid var(--border);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-        }
-
-        .logo {
-            font-size: 22px;
-            font-weight: 800;
-            background: var(--gradient-main);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            letter-spacing: -0.5px;
-        }
-
-        .status-badge {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .status-live {
-            background: rgba(16, 185, 129, 0.15);
-            color: var(--accent-green);
-            border: 1px solid rgba(16, 185, 129, 0.3);
-        }
-
-        .status-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: var(--accent-green);
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--accent-green-glow); }
-            50% { opacity: 0.7; box-shadow: 0 0 0 6px transparent; }
-        }
-
-        .header-right {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-
-        .model-tag {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
-            color: var(--accent-purple);
-            background: rgba(139, 92, 246, 0.1);
-            padding: 4px 10px;
-            border-radius: 6px;
-            border: 1px solid rgba(139, 92, 246, 0.2);
-        }
-
-        .time-display {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 13px;
-            color: var(--text-secondary);
-        }
-
-        /* Main Grid */
-        .main-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr 1fr;
-            grid-template-rows: auto auto 1fr;
-            gap: 16px;
-            padding: 20px 28px;
-            max-width: 1600px;
-            margin: 0 auto;
-        }
-
-        /* Cards */
-        .card {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 20px;
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 12px;
-            padding: 20px;
-            transition: all 0.2s ease;
+            margin-bottom: 16px;
         }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .logo { font-size: 22px; font-weight: 800; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .status { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 16px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .status.live { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+        .status.offline { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+        .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+        .model-tag { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--purple); background: rgba(139,92,246,0.1); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(139,92,246,0.2); }
+        .clock { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-muted); }
 
-        .card:hover {
-            border-color: rgba(59, 130, 246, 0.3);
-            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+        /* Account Row */
+        .account-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+        .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+        .stat-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 6px; }
+        .stat-value { font-size: 24px; font-weight: 700; }
+        .stat-sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+        .positive { color: var(--green); }
+        .negative { color: var(--red); }
+
+        /* Symbols Grid */
+        .symbols-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px; }
+        .symbol-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; transition: border-color 0.2s; }
+        .symbol-card:hover { border-color: var(--blue); }
+        .symbol-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .symbol-name { font-size: 15px; font-weight: 700; }
+        .symbol-price { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--text-secondary); }
+        .symbol-status { font-size: 10px; font-weight: 600; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; }
+        .symbol-status.scanning { background: rgba(59,130,246,0.15); color: var(--blue); }
+        .symbol-status.analyzing { background: rgba(245,158,11,0.15); color: var(--yellow); }
+        .symbol-status.signal { background: rgba(16,185,129,0.15); color: var(--green); }
+
+        .confluence-bar { display: flex; gap: 3px; margin-top: 8px; }
+        .c-seg { flex: 1; height: 5px; border-radius: 3px; background: var(--border); transition: background 0.3s; }
+        .c-seg.on { background: var(--green); box-shadow: 0 0 6px rgba(16,185,129,0.3); }
+        .c-seg.warn { background: var(--yellow); }
+        .confluence-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; display: flex; justify-content: space-between; }
+
+        /* Two-column layout */
+        .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+        .card-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 10px; }
+
+        /* Council Feed */
+        .council-feed { max-height: 300px; overflow-y: auto; }
+        .council-entry { padding: 10px; border-radius: 6px; background: rgba(10,14,23,0.6); margin-bottom: 6px; border-left: 3px solid var(--blue); font-size: 12px; }
+        .council-entry.buy { border-left-color: var(--green); }
+        .council-entry.sell { border-left-color: var(--red); }
+        .council-time { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-muted); }
+        .council-msg { margin-top: 3px; color: var(--text-secondary); line-height: 1.4; }
+
+        /* Logs */
+        .log-container { max-height: 300px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.7; padding: 10px; background: rgba(10,14,23,0.8); border-radius: 6px; }
+        .log-container::-webkit-scrollbar { width: 5px; }
+        .log-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        .log-line { display: flex; gap: 8px; }
+        .log-time { color: var(--text-muted); flex-shrink: 0; }
+        .log-msg { color: var(--green); }
+        .log-info { color: var(--cyan); }
+        .log-warn { color: var(--yellow); }
+        .log-error { color: var(--red); }
+
+        /* Trades table */
+        .full-width { grid-column: 1 / -1; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        thead th { text-align: left; padding: 8px 12px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+        tbody td { padding: 10px 12px; border-bottom: 1px solid rgba(42,51,72,0.4); color: var(--text-secondary); }
+        .dir-buy { color: var(--green); font-weight: 600; }
+        .dir-sell { color: var(--red); font-weight: 600; }
+        .empty { text-align: center; padding: 30px; color: var(--text-muted); }
+
+        @media (max-width: 900px) {
+            .account-row { grid-template-columns: repeat(2, 1fr); }
+            .bottom-grid { grid-template-columns: 1fr; }
         }
-
-        .card-label {
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--text-muted);
-            margin-bottom: 8px;
-        }
-
-        .card-value {
-            font-size: 28px;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-        }
-
-        .card-sub {
-            font-size: 12px;
-            color: var(--text-secondary);
-            margin-top: 4px;
-        }
-
-        .positive { color: var(--accent-green); }
-        .negative { color: var(--accent-red); }
-
-        /* Stat Cards Row */
-        .stat-card { grid-column: span 1; }
-
-        /* Trades Table */
-        .trades-section {
-            grid-column: 1 / 4;
-        }
-
-        .table-container {
-            overflow-x: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-
-        thead th {
-            text-align: left;
-            padding: 10px 14px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            color: var(--text-muted);
-            border-bottom: 1px solid var(--border);
-        }
-
-        tbody tr {
-            transition: background 0.15s;
-        }
-
-        tbody tr:hover {
-            background: var(--bg-card-hover);
-        }
-
-        tbody td {
-            padding: 12px 14px;
-            border-bottom: 1px solid rgba(42, 51, 72, 0.5);
-            color: var(--text-secondary);
-        }
-
-        .direction-buy {
-            color: var(--accent-green);
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .direction-sell {
-            color: var(--accent-red);
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: var(--text-muted);
-            font-size: 14px;
-        }
-
-        /* Council Activity */
-        .council-section {
-            grid-column: 4 / 5;
-        }
-
-        .council-entry {
-            padding: 12px;
-            border-radius: 8px;
-            background: rgba(17, 24, 39, 0.6);
-            margin-bottom: 8px;
-            border-left: 3px solid var(--accent-blue);
-            font-size: 13px;
-        }
-
-        .council-entry.buy-signal {
-            border-left-color: var(--accent-green);
-        }
-
-        .council-entry.sell-signal {
-            border-left-color: var(--accent-red);
-        }
-
-        .council-entry .council-time {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 10px;
-            color: var(--text-muted);
-        }
-
-        .council-entry .council-msg {
-            margin-top: 4px;
-            color: var(--text-secondary);
-            line-height: 1.4;
-        }
-
-        /* System Logs */
-        .logs-section {
-            grid-column: 1 / -1;
-        }
-
-        .log-container {
-            max-height: 260px;
-            overflow-y: auto;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
-            line-height: 1.8;
-            padding: 12px;
-            background: rgba(10, 14, 23, 0.8);
-            border-radius: 8px;
-        }
-
-        .log-container::-webkit-scrollbar {
-            width: 6px;
-        }
-        .log-container::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        .log-container::-webkit-scrollbar-thumb {
-            background: var(--border);
-            border-radius: 3px;
-        }
-
-        .log-line {
-            display: flex;
-            gap: 10px;
-        }
-
-        .log-time {
-            color: var(--text-muted);
-            flex-shrink: 0;
-        }
-
-        .log-msg { color: var(--accent-green); }
-        .log-warn { color: var(--accent-yellow); }
-        .log-error { color: var(--accent-red); }
-        .log-info { color: var(--accent-cyan); }
-
-        /* Confluence Meter */
-        .confluence-bar {
-            display: flex;
-            gap: 4px;
-            margin-top: 8px;
-        }
-
-        .confluence-segment {
-            flex: 1;
-            height: 6px;
-            border-radius: 3px;
-            background: var(--border);
-            transition: background 0.3s;
-        }
-
-        .confluence-segment.active {
-            background: var(--accent-green);
-            box-shadow: 0 0 8px var(--accent-green-glow);
-        }
-
-        .confluence-segment.warn {
-            background: var(--accent-yellow);
-        }
-
-        /* Responsive */
-        @media (max-width: 1200px) {
-            .main-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-            .trades-section { grid-column: 1 / -1; }
-            .council-section { grid-column: 1 / -1; }
-            .logs-section { grid-column: 1 / -1; }
-        }
-
-        @media (max-width: 768px) {
-            .main-grid {
-                grid-template-columns: 1fr;
-            }
-            .stat-card { grid-column: span 1; }
-        }
-
-        /* Animations */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .card { animation: fadeIn 0.4s ease forwards; }
-        .card:nth-child(2) { animation-delay: 0.05s; }
-        .card:nth-child(3) { animation-delay: 0.1s; }
-        .card:nth-child(4) { animation-delay: 0.15s; }
     </style>
 </head>
 <body>
-    <header class="header">
+    <div class="header">
         <div class="header-left">
             <div class="logo">⚡ APEX</div>
-            <div class="status-badge status-live">
-                <span class="status-dot"></span>
-                <span id="statusText">LIVE</span>
-            </div>
+            <div class="status live" id="connStatus"><span class="dot"></span><span id="statusText">CONNECTING</span></div>
         </div>
-        <div class="header-right">
-            <span class="model-tag" id="modelTag">qwen3-vl:8b</span>
-            <span class="time-display" id="clock"></span>
+        <div style="display:flex;align-items:center;gap:12px;">
+            <span class="model-tag">qwen3-vl:8b</span>
+            <span class="clock" id="clock"></span>
         </div>
-    </header>
+    </div>
 
-    <div class="main-grid">
-        <!-- Stat Cards -->
-        <div class="card stat-card" id="balanceCard">
-            <div class="card-label">Balance</div>
-            <div class="card-value" id="balance">$0.00</div>
-            <div class="card-sub" id="balanceSub">Demo Account</div>
-        </div>
-        <div class="card stat-card" id="equityCard">
-            <div class="card-label">Equity</div>
-            <div class="card-value" id="equity">$0.00</div>
-            <div class="card-sub" id="equitySub">—</div>
-        </div>
-        <div class="card stat-card">
-            <div class="card-label">Win Rate</div>
-            <div class="card-value positive" id="winRate">0%</div>
-            <div class="card-sub" id="tradeCount">0 trades</div>
-        </div>
-        <div class="card stat-card">
-            <div class="card-label">Confluence</div>
-            <div class="card-value" id="confluenceScore">0/5</div>
-            <div class="confluence-bar" id="confluenceBar">
-                <div class="confluence-segment"></div>
-                <div class="confluence-segment"></div>
-                <div class="confluence-segment"></div>
-                <div class="confluence-segment"></div>
-                <div class="confluence-segment"></div>
-            </div>
-        </div>
+    <div class="account-row">
+        <div class="stat-card"><div class="stat-label">Balance</div><div class="stat-value" id="balance">—</div><div class="stat-sub">Demo Account</div></div>
+        <div class="stat-card"><div class="stat-label">Equity</div><div class="stat-value" id="equity">—</div><div class="stat-sub" id="eqDiff">—</div></div>
+        <div class="stat-card"><div class="stat-label">Win Rate</div><div class="stat-value positive" id="winRate">0%</div><div class="stat-sub" id="tradeCount">0 trades</div></div>
+        <div class="stat-card"><div class="stat-label">Active Symbols</div><div class="stat-value" id="symbolCount">0</div><div class="stat-sub">Monitoring</div></div>
+    </div>
 
-        <!-- Open Trades -->
-        <div class="card trades-section">
-            <div class="card-label">Open Trades</div>
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Symbol</th>
-                            <th>Direction</th>
-                            <th>Entry</th>
-                            <th>SL</th>
-                            <th>TP</th>
-                            <th>P&L</th>
-                            <th>Time</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tradesBody">
-                        <tr><td colspan="7" class="empty-state">Waiting for AI council signals...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+    <!-- Per-Symbol Confluence Cards -->
+    <div class="symbols-grid" id="symbolsGrid"></div>
 
-        <!-- Council Activity -->
-        <div class="card council-section">
+    <!-- Trades Table -->
+    <div class="card full-width" style="margin-bottom:12px;">
+        <div class="card-label">Open Trades</div>
+        <table><thead><tr><th>Symbol</th><th>Direction</th><th>Entry</th><th>SL</th><th>TP</th><th>Time</th></tr></thead>
+        <tbody id="tradesBody"><tr><td colspan="6" class="empty">Waiting for signals...</td></tr></tbody></table>
+    </div>
+
+    <div class="bottom-grid">
+        <div class="card">
             <div class="card-label">AI Council Activity</div>
-            <div id="councilFeed" style="max-height: 300px; overflow-y: auto;">
-                <div class="council-entry">
-                    <div class="council-time">Awaiting first analysis...</div>
-                    <div class="council-msg">Council is monitoring market data</div>
-                </div>
+            <div class="council-feed" id="councilFeed">
+                <div class="council-entry"><div class="council-time">Awaiting first analysis...</div></div>
             </div>
         </div>
-
-        <!-- System Logs -->
-        <div class="card logs-section">
+        <div class="card">
             <div class="card-label">System Logs</div>
             <div class="log-container" id="logContainer"></div>
         </div>
     </div>
 
     <script>
-        // Clock
+        const symbols = {};
+
         function updateClock() {
-            const now = new Date();
-            document.getElementById('clock').textContent = now.toLocaleTimeString('en-US', { hour12: true });
+            document.getElementById('clock').textContent = new Date().toLocaleTimeString();
         }
-        setInterval(updateClock, 1000);
-        updateClock();
+        setInterval(updateClock, 1000); updateClock();
 
-        // SSE for live updates
-        const evtSource = new EventSource('/events');
+        function connectSSE() {
+            const es = new EventSource('/events');
 
-        evtSource.addEventListener('market_data', (e) => {
-            const data = JSON.parse(e.data);
-            addLog(`Data Received: ${data.symbol} ${data.timeframe}`, 'info');
-        });
+            es.onopen = () => {
+                document.getElementById('statusText').textContent = 'LIVE';
+                document.getElementById('connStatus').className = 'status live';
+                addLog('SSE connected', 'info');
+            };
 
-        evtSource.addEventListener('account', (e) => {
-            const data = JSON.parse(e.data);
-            if (data && data.balance) {
-                document.getElementById('balance').textContent = `$${parseFloat(data.balance).toLocaleString('en-US', {minimumFractionDigits: 2})}`;
-                document.getElementById('equity').textContent = `$${parseFloat(data.equity).toLocaleString('en-US', {minimumFractionDigits: 2})}`;
-                const diff = (data.equity - data.balance).toFixed(2);
-                const el = document.getElementById('equitySub');
-                el.textContent = diff >= 0 ? `+$${diff}` : `-$${Math.abs(diff)}`;
-                el.className = diff >= 0 ? 'card-sub positive' : 'card-sub negative';
-            }
-        });
+            es.onerror = () => {
+                document.getElementById('statusText').textContent = 'RECONNECTING';
+                document.getElementById('connStatus').className = 'status offline';
+            };
 
-        evtSource.addEventListener('log', (e) => {
-            const data = JSON.parse(e.data);
-            addLog(data.message, data.type || 'msg');
-        });
+            es.addEventListener('market_data', e => {
+                const d = JSON.parse(e.data);
+                if (!d.symbol) return;
+                if (!symbols[d.symbol]) symbols[d.symbol] = { confluence: 0, price: '—', status: 'scanning', lastUpdate: Date.now() };
+                symbols[d.symbol].lastUpdate = Date.now();
+                if (d.price) symbols[d.symbol].price = d.price;
+                renderSymbols();
+            });
 
-        evtSource.addEventListener('council', (e) => {
-            const data = JSON.parse(e.data);
-            addCouncilEntry(data);
-        });
+            es.addEventListener('account', e => {
+                const d = JSON.parse(e.data);
+                if (d && d.balance) {
+                    document.getElementById('balance').textContent = '$' + parseFloat(d.balance).toLocaleString('en-US', {minimumFractionDigits:2});
+                    document.getElementById('equity').textContent = '$' + parseFloat(d.equity).toLocaleString('en-US', {minimumFractionDigits:2});
+                    const diff = (d.equity - d.balance).toFixed(2);
+                    const el = document.getElementById('eqDiff');
+                    el.textContent = diff >= 0 ? `+$${diff}` : `-$${Math.abs(diff)}`;
+                    el.className = diff >= 0 ? 'stat-sub positive' : 'stat-sub negative';
+                }
+            });
 
-        evtSource.addEventListener('confluence', (e) => {
-            const data = JSON.parse(e.data);
-            updateConfluence(data.score);
-        });
+            es.addEventListener('confluence', e => {
+                const d = JSON.parse(e.data);
+                if (d.symbol && symbols[d.symbol]) {
+                    symbols[d.symbol].confluence = d.score;
+                    symbols[d.symbol].status = d.score >= 4 ? 'analyzing' : 'scanning';
+                    renderSymbols();
+                }
+            });
 
-        evtSource.addEventListener('trade', (e) => {
-            const data = JSON.parse(e.data);
-            addTrade(data);
-        });
+            es.addEventListener('council', e => {
+                const d = JSON.parse(e.data);
+                if (d.symbol && symbols[d.symbol]) {
+                    symbols[d.symbol].status = d.direction !== 'NEUTRAL' ? 'signal' : 'scanning';
+                    renderSymbols();
+                }
+                addCouncilEntry(d);
+            });
 
-        evtSource.addEventListener('stats', (e) => {
-            const data = JSON.parse(e.data);
-            if (data.winRate !== undefined) {
-                document.getElementById('winRate').textContent = `${data.winRate}%`;
-            }
-            if (data.tradeCount !== undefined) {
-                document.getElementById('tradeCount').textContent = `${data.tradeCount} trades`;
-            }
-        });
+            es.addEventListener('log', e => {
+                const d = JSON.parse(e.data);
+                addLog(d.message, d.type || 'msg');
+            });
 
-        function addLog(msg, type = 'msg') {
-            const container = document.getElementById('logContainer');
-            const line = document.createElement('div');
-            line.className = 'log-line';
-            const time = new Date().toLocaleTimeString('en-US', {hour12: false});
-            line.innerHTML = `<span class="log-time">${time}</span><span class="log-${type}">${msg}</span>`;
-            container.appendChild(line);
-            container.scrollTop = container.scrollHeight;
-            // Keep max 200 lines
-            while (container.children.length > 200) container.removeChild(container.firstChild);
-        }
+            es.addEventListener('trade', e => {
+                const d = JSON.parse(e.data);
+                addTrade(d);
+            });
 
-        function addCouncilEntry(data) {
-            const feed = document.getElementById('councilFeed');
-            const entry = document.createElement('div');
-            const cls = data.direction === 'BUY' ? 'buy-signal' : data.direction === 'SELL' ? 'sell-signal' : '';
-            entry.className = `council-entry ${cls}`;
-            const time = new Date().toLocaleTimeString('en-US', {hour12: false});
-            entry.innerHTML = `<div class="council-time">${time} — ${data.symbol || ''}</div>
-                <div class="council-msg">${data.direction || 'ANALYZING'} | Confidence: ${data.confidence || 0}%<br>${data.rationale || ''}</div>`;
-            feed.insertBefore(entry, feed.firstChild);
-            while (feed.children.length > 30) feed.removeChild(feed.lastChild);
-        }
-
-        function updateConfluence(score) {
-            document.getElementById('confluenceScore').textContent = `${score}/5`;
-            const segments = document.querySelectorAll('.confluence-segment');
-            segments.forEach((seg, i) => {
-                seg.className = 'confluence-segment' + (i < score ? (score >= 4 ? ' active' : ' warn') : '');
+            es.addEventListener('stats', e => {
+                const d = JSON.parse(e.data);
+                if (d.winRate !== undefined) document.getElementById('winRate').textContent = d.winRate + '%';
+                if (d.tradeCount !== undefined) document.getElementById('tradeCount').textContent = d.tradeCount + ' trades';
             });
         }
 
-        function addTrade(trade) {
-            const tbody = document.getElementById('tradesBody');
-            // Remove empty state
-            const empty = tbody.querySelector('.empty-state');
-            if (empty) empty.parentElement.remove();
+        function renderSymbols() {
+            const grid = document.getElementById('symbolsGrid');
+            const keys = Object.keys(symbols);
+            document.getElementById('symbolCount').textContent = keys.length;
 
+            grid.innerHTML = keys.map(sym => {
+                const s = symbols[sym];
+                const segs = [0,1,2,3,4].map(i => {
+                    if (i < s.confluence) return s.confluence >= 4 ? 'c-seg on' : 'c-seg warn';
+                    return 'c-seg';
+                }).map(cls => `<div class="${cls}"></div>`).join('');
+
+                return `<div class="symbol-card">
+                    <div class="symbol-header">
+                        <span class="symbol-name">${sym}</span>
+                        <span class="symbol-status ${s.status}">${s.status}</span>
+                    </div>
+                    <div class="symbol-price">${s.price}</div>
+                    <div class="confluence-bar">${segs}</div>
+                    <div class="confluence-label"><span>Confluence</span><span>${s.confluence}/5</span></div>
+                </div>`;
+            }).join('');
+        }
+
+        function addLog(msg, type = 'msg') {
+            const c = document.getElementById('logContainer');
+            const t = new Date().toLocaleTimeString('en-US', {hour12:false});
+            const d = document.createElement('div');
+            d.className = 'log-line';
+            d.innerHTML = `<span class="log-time">${t}</span><span class="log-${type}">${msg}</span>`;
+            c.appendChild(d);
+            c.scrollTop = c.scrollHeight;
+            while (c.children.length > 150) c.removeChild(c.firstChild);
+        }
+
+        function addCouncilEntry(data) {
+            const f = document.getElementById('councilFeed');
+            const cls = data.direction === 'BUY' ? 'buy' : data.direction === 'SELL' ? 'sell' : '';
+            const t = new Date().toLocaleTimeString('en-US', {hour12:false});
+            const d = document.createElement('div');
+            d.className = `council-entry ${cls}`;
+            d.innerHTML = `<div class="council-time">${t} — ${data.symbol||''}</div><div class="council-msg">${data.direction||'NEUTRAL'} | Confidence: ${data.confidence||0}%<br>${data.rationale||''}</div>`;
+            f.insertBefore(d, f.firstChild);
+            while (f.children.length > 30) f.removeChild(f.lastChild);
+        }
+
+        function addTrade(t) {
+            const tbody = document.getElementById('tradesBody');
+            const empty = tbody.querySelector('.empty'); if (empty) empty.parentElement.remove();
             const row = document.createElement('tr');
-            const dirClass = trade.direction === 'BUY' ? 'direction-buy' : 'direction-sell';
-            const arrow = trade.direction === 'BUY' ? '▲' : '▼';
-            const time = new Date().toLocaleTimeString('en-US', {hour12: false});
-            row.innerHTML = `
-                <td style="color: var(--text-primary); font-weight: 500;">${trade.symbol}</td>
-                <td><span class="${dirClass}">${arrow} ${trade.direction}</span></td>
-                <td>${trade.entry}</td>
-                <td>${trade.sl}</td>
-                <td>${trade.tp}</td>
-                <td class="positive">$0.00</td>
-                <td style="color: var(--text-muted);">${time}</td>`;
+            const cls = t.direction === 'BUY' ? 'dir-buy' : 'dir-sell';
+            const arrow = t.direction === 'BUY' ? '▲' : '▼';
+            const time = new Date().toLocaleTimeString('en-US', {hour12:false});
+            row.innerHTML = `<td style="color:var(--text-primary);font-weight:500">${t.symbol}</td><td class="${cls}">${arrow} ${t.direction}</td><td>${t.entry}</td><td>${t.sl}</td><td>${t.tp}</td><td style="color:var(--text-muted)">${time}</td>`;
             tbody.insertBefore(row, tbody.firstChild);
         }
 
-        evtSource.onerror = () => {
-            document.getElementById('statusText').textContent = 'RECONNECTING';
-        };
-
-        addLog('APEX Web Dashboard initialized', 'info');
-        addLog('Waiting for MT5 bridge connection...', 'msg');
+        connectSSE();
+        addLog('APEX Dashboard initialized', 'info');
     </script>
 </body>
 </html>

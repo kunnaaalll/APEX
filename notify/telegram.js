@@ -28,11 +28,12 @@ class TelegramNotifier {
     async notifySetup(symbol, decision) {
         const msg = `🚀 *APEX Trade Setup*\n\n` +
                     `Symbol: ${symbol}\n` +
-                    `Direction: ${decision.direction}\n` +
-                    `Entry: ${decision.entry}\n` +
-                    `SL: ${decision.sl}\n` +
-                    `TP: ${decision.tp}\n\n` +
-                    `Rationale: ${decision.rationale}`;
+                    `Direction: ${decision.direction || 'N/A'}\n` +
+                    `Confidence: ${decision.confidence || 0}%\n` +
+                    `Entry: ${decision.entry || 'Market'}\n` +
+                    `SL: ${decision.sl || 'N/A'}\n` +
+                    `TP: ${decision.tp || 'N/A'}\n\n` +
+                    `Rationale: ${decision.rationale || 'AI signal'}`;
         await this.send(msg);
     }
 }
