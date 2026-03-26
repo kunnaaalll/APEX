@@ -5,6 +5,8 @@ class WebDashboard extends events.EventEmitter {
     constructor() {
         super();
         this.clients = [];
+        this.history = []; 
+        this.maxHistory = 100;
     }
 
     attach(app) {
@@ -19,19 +21,33 @@ class WebDashboard extends events.EventEmitter {
                 'Connection': 'keep-alive',
                 'X-Accel-Buffering': 'no'
             });
-            // Send a ping immediately so the connection opens
+            
             res.write('event: ping\ndata: {}\n\n');
-            this.clients.push(res);
-            console.log(`Dashboard: Browser connected (${this.clients.length} clients)`);
+            
+            // 📡 Replay history with a slight delay to ensure browser is ready
+            setTimeout(() => {
+                this.history.forEach(item => {
+                    try {
+                        res.write(`event: ${item.event}\ndata: ${JSON.stringify(item.data)}\n\n`);
+                    } catch(e) {}
+                });
+            }, 100);
 
-            req.on('close', () => {
-                this.clients = this.clients.filter(c => c !== res);
-                console.log(`Dashboard: Browser disconnected (${this.clients.length} clients)`);
-            });
+            this.clients.push(res);
+            req.on('close', () => { this.clients = this.clients.filter(c => c !== res); });
         });
     }
 
+    addToHistory(event, data) {
+        this.history.push({ event, data });
+        if (this.history.length > this.maxHistory) this.history.shift();
+    }
+
     broadcast(event, data) {
+        if (['council', 'trade', 'log'].includes(event)) {
+            this.addToHistory(event, data);
+        }
+
         const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
         this.clients = this.clients.filter(client => {
             try { client.write(msg); return true; }
@@ -40,15 +56,42 @@ class WebDashboard extends events.EventEmitter {
     }
 
     logMessage(msg, type = 'msg') {
-        this.broadcast('log', { message: msg, type });
-        console.log(`[${new Date().toLocaleTimeString()}] ${msg}`);
+        const time = new Date().toLocaleTimeString('en-US', {hour12:false});
+        const logData = { message: msg, type, time };
+        this.broadcast('log', logData);
+        console.log(`[${time}] ${msg}`);
     }
 
     updateStats(data) { this.broadcast('stats', data); }
-    updateTrades(trades) { trades.forEach(t => this.broadcast('trade', t)); }
+
+    updateTrades(positions) {
+        if (!positions) return;
+        // 🛠️ MAP MT5 POSITIONS TO UI FORMAT
+        const trades = positions.map(pos => ({
+            symbol: pos.symbol,
+            direction: (pos.type === 0 || pos.type === 'BUY') ? 'BUY' : 'SELL',
+            entry: pos.price_open || pos.entry || 0,
+            sl: pos.sl || 0,
+            tp: pos.tp || 0,
+            time: pos.time || new Date().toLocaleTimeString('en-US', {hour12:false})
+        }));
+        
+        // Clear old ones on UI then send new ones
+        this.broadcast('clear_trades', {});
+        trades.forEach(t => this.broadcast('trade', t));
+    }
+
     sendMarketData(data) { this.broadcast('market_data', data); }
-    sendAccountInfo(info) { this.broadcast('account', info); }
-    sendCouncilDecision(decision) { this.broadcast('council', decision); }
+    sendAccountInfo(info) { 
+        this.broadcast('account', info);
+        if (info && info.positions) this.updateTrades(info.positions);
+    }
+
+    sendCouncilDecision(decision) {
+        decision.time = new Date().toLocaleTimeString('en-US', {hour12:false});
+        this.broadcast('council', decision);
+    }
+    
     sendConfluence(symbol, score) { this.broadcast('confluence', { symbol, score }); }
     render() {}
 }

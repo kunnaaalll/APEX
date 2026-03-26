@@ -146,9 +146,8 @@
     <div class="bottom-grid">
         <div class="card">
             <div class="card-label">AI Council Activity</div>
-            <div class="council-feed" id="councilFeed">
-                <div class="council-entry"><div class="council-time">Awaiting first analysis...</div></div>
-            </div>
+            <div class="council-feed" id="councilFeed"></div>
+
         </div>
         <div class="card">
             <div class="card-label">System Logs</div>
@@ -222,6 +221,10 @@
                 addLog(d.message, d.type || 'msg');
             });
 
+            es.addEventListener('clear_trades', () => {
+                document.getElementById('tradesBody').innerHTML = '<tr><td colspan="6" class="empty">Waiting for signals...</td></tr>';
+            });
+
             es.addEventListener('trade', e => {
                 const d = JSON.parse(e.data);
                 addTrade(d);
@@ -239,7 +242,7 @@
             const keys = Object.keys(symbols);
             document.getElementById('symbolCount').textContent = keys.length;
 
-            grid.innerHTML = keys.map(sym => {
+            grid.innerHTML = keys.sort().map(sym => {
                 const s = symbols[sym];
                 const segs = [0,1,2,3,4].map(i => {
                     if (i < s.confluence) return s.confluence >= 4 ? 'c-seg on' : 'c-seg warn';
@@ -258,36 +261,58 @@
             }).join('');
         }
 
-        function addLog(msg, type = 'msg') {
+        function addLog(msg, type = 'msg', time) {
             const c = document.getElementById('logContainer');
-            const t = new Date().toLocaleTimeString('en-US', {hour12:false});
+            const t = time || new Date().toLocaleTimeString('en-US', {hour12:false});
+            
+            // Deduplicate logs on replay
+            const logId = `log-${btoa(msg + t)}`;
+            if (document.getElementById(logId)) return;
+
             const d = document.createElement('div');
+            d.id = logId;
             d.className = 'log-line';
             d.innerHTML = `<span class="log-time">${t}</span><span class="log-${type}">${msg}</span>`;
             c.appendChild(d);
             c.scrollTop = c.scrollHeight;
-            while (c.children.length > 150) c.removeChild(c.firstChild);
+            while (c.children.length > 200) c.removeChild(c.firstChild);
         }
 
         function addCouncilEntry(data) {
             const f = document.getElementById('councilFeed');
+            const entryId = `council-${data.symbol}-${data.time || Date.now()}`;
+            if (document.getElementById(entryId)) return;
+
             const cls = data.direction === 'BUY' ? 'buy' : data.direction === 'SELL' ? 'sell' : '';
-            const t = new Date().toLocaleTimeString('en-US', {hour12:false});
+            const t = data.time || new Date().toLocaleTimeString('en-US', {hour12:false});
             const d = document.createElement('div');
+            d.id = entryId;
             d.className = `council-entry ${cls}`;
             d.innerHTML = `<div class="council-time">${t} — ${data.symbol||''}</div><div class="council-msg">${data.direction||'NEUTRAL'} | Confidence: ${data.confidence||0}%<br>${data.rationale||''}</div>`;
             f.insertBefore(d, f.firstChild);
-            while (f.children.length > 30) f.removeChild(f.lastChild);
+            while (f.children.length > 50) f.removeChild(f.lastChild);
         }
 
         function addTrade(t) {
             const tbody = document.getElementById('tradesBody');
+            
+            // Mapping for MT5 data if not already mapped
+            const dir = (t.type === 0 || t.direction === 'BUY') ? 'BUY' : 'SELL';
+            const entry = t.price_open || t.entry || 0;
+            const sl = t.sl || 0;
+            const tp = t.tp || 0;
+
+            const tradeId = `trade-${t.symbol}-${entry}`;
+            if (document.getElementById(tradeId)) return;
+
             const empty = tbody.querySelector('.empty'); if (empty) empty.parentElement.remove();
+            
             const row = document.createElement('tr');
-            const cls = t.direction === 'BUY' ? 'dir-buy' : 'dir-sell';
-            const arrow = t.direction === 'BUY' ? '▲' : '▼';
-            const time = new Date().toLocaleTimeString('en-US', {hour12:false});
-            row.innerHTML = `<td style="color:var(--text-primary);font-weight:500">${t.symbol}</td><td class="${cls}">${arrow} ${t.direction}</td><td>${t.entry}</td><td>${t.sl}</td><td>${t.tp}</td><td style="color:var(--text-muted)">${time}</td>`;
+            row.id = tradeId;
+            const cls = dir === 'BUY' ? 'dir-buy' : 'dir-sell';
+            const arrow = dir === 'BUY' ? '▲' : '▼';
+            const timeStr = t.time || new Date().toLocaleTimeString('en-US', {hour12:false});
+            row.innerHTML = `<td style="color:var(--text-primary);font-weight:500">${t.symbol}</td><td class="${cls}">${arrow} ${dir}</td><td>${entry}</td><td>${sl}</td><td>${tp}</td><td style="color:var(--text-muted)">${timeStr}</td>`;
             tbody.insertBefore(row, tbody.firstChild);
         }
 

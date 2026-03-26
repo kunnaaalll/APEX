@@ -75,7 +75,28 @@ void SendUpdate()
       json += "}";
       if(i < 9) json += ",";
    }
+   // Add positions
+   json += ",\"positions\": [";
+   int total = PositionsTotal();
+   for(int i=0; i<total; i++)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(PositionSelectByTicket(ticket))
+      {
+         json += "{";
+         json += "\"ticket\":" + IntegerToString(ticket) + ",";
+         json += "\"symbol\":\"" + PositionGetString(POSITION_SYMBOL) + "\",";
+         json += "\"type\":" + IntegerToString(PositionGetInteger(POSITION_TYPE)) + ",";
+         json += "\"price_open\":" + DoubleToString(PositionGetDouble(POSITION_PRICE_OPEN), _Digits) + ",";
+         json += "\"sl\":" + DoubleToString(PositionGetDouble(POSITION_SL), _Digits) + ",";
+         json += "\"tp\":" + DoubleToString(PositionGetDouble(POSITION_TP), _Digits) + ",";
+         json += "\"profit\":" + DoubleToString(PositionGetDouble(POSITION_PROFIT), 2);
+         json += "}";
+         if(i < total - 1) json += ",";
+      }
+   }
    json += "]}";
+
    
    int len = StringToCharArray(json, post, 0, WHOLE_ARRAY, CP_UTF8) - 1;
    
@@ -101,21 +122,23 @@ void SendUpdate()
 //+------------------------------------------------------------------+
 void ProcessCommands(string json)
 {
-   // Note: Basic JSON parsing for commands like: 
-   // {"commands":[{"type":"MARKET","direction":"BUY","sl":1.0820,"tp":1.0890,"volume":0.01}]}
-   
    if(StringFind(json, "\"commands\":[]") > -1) return;
    
-   Print("APEX: Received Trade Command: ", json);
-
-   // Simple string split approach for command params
-   string direction = GetJsonValue(json, "direction");
-   double entry = StringToDouble(GetJsonValue(json, "entry"));
-   double sl = StringToDouble(GetJsonValue(json, "sl"));
-   double tp = StringToDouble(GetJsonValue(json, "tp"));
-   double vol = StringToDouble(GetJsonValue(json, "volume"));
+   // Parse command array
+   int startObj = StringFind(json, "{", StringFind(json, "commands"));
+   if(startObj == -1) return;
+   
+   string cmd = StringSubstr(json, startObj);
+   string sym = GetJsonValue(cmd, "symbol");
+   string dir = GetJsonValue(cmd, "direction");
+   double sl  = StringToDouble(GetJsonValue(cmd, "sl"));
+   double tp  = StringToDouble(GetJsonValue(cmd, "tp"));
+   double vol = StringToDouble(GetJsonValue(cmd, "volume"));
 
    if(vol <= 0) vol = 0.01;
+   if(sym == "") sym = _Symbol;
+
+   Print("APEX: Executing ", dir, " on ", sym, " vol ", vol);
 
    MqlTradeRequest request;
    MqlTradeResult  result;
@@ -123,25 +146,30 @@ void ProcessCommands(string json)
    ZeroMemory(result);
 
    request.action   = TRADE_ACTION_DEAL;
-   request.symbol   = _Symbol;
+   request.symbol   = sym;
    request.volume   = vol;
-   request.type     = (direction == "BUY") ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
-   request.price    = (request.type == ORDER_TYPE_BUY) ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   request.type     = (dir == "BUY") ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
+   request.price    = (request.type == ORDER_TYPE_BUY) ? SymbolInfoDouble(sym, SYMBOL_ASK) : SymbolInfoDouble(sym, SYMBOL_BID);
    request.sl       = sl;
    request.tp       = tp;
    request.magic    = 123456;
    request.comment  = "APEX Trade";
-   request.type_filling = ORDER_FILLING_IOC;
+   request.type_filling = ORDER_FILLING_FOK; // Changed from IOC to FOK for broker compatibility
 
    if(!OrderSend(request, result))
    {
-      Print("APEX: Trade execution failed! Error: ", GetLastError());
+      int err = GetLastError();
+      Print("APEX: EXECUTION ERROR ", err, " - ", ErrorDescription(err));
+      // Fallback: Try ORDER_FILLING_IOC if FOK fails
+      request.type_filling = ORDER_FILLING_IOC;
+      OrderSend(request, result);
    }
    else
    {
-      Print("APEX: Trade executed successfully. Ticket: ", result.deal);
+      Print("APEX: TRADE OPENED! Ticket: ", result.deal);
    }
 }
+
 
 string GetJsonValue(string text, string key)
 {
