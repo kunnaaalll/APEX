@@ -1,5 +1,5 @@
 const journal = require('../db/journal');
-const ollama = require('../llm/ollama');
+const openrouter = require('../llm/openrouter');
 
 class PostTradeReview {
     constructor() {}
@@ -11,7 +11,7 @@ class PostTradeReview {
         if (!originalTrade) return;
 
         const prompt = this.generateReviewPrompt(originalTrade, outcomeData);
-        const lesson = await ollama.analyze(prompt, "You are a professional trading mentor. Review this trade and write one clear, actionable lesson to improve future performance.");
+        const lesson = await openrouter.analyze(prompt, "You are a professional trading mentor. Review this trade and write one clear, actionable lesson to improve future performance.");
 
         if (lesson && lesson.lesson) {
             await this.storeLesson(tradeId, lesson.lesson);

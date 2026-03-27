@@ -12,7 +12,7 @@ async function main() {
     dashboard.updateTrades(openTrades);
     dashboard.logMessage(`Loaded ${openTrades.length} open trades from database.`);
 
-    dashboard.logMessage(`AI Engine: ${process.env.OLLAMA_MODEL || 'Ollama (Not Configured)'}`);
+    dashboard.logMessage(`AI Engine: OpenRouter (${process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat'})`);
     dashboard.logMessage(`Mode: ${process.env.TRADING_MODE || 'demo'}`);
 
     // Update Stats Sample

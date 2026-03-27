@@ -1,8 +1,8 @@
-const ollama = require('./ollama');
+const openrouter = require('./openrouter');
 
 class Council {
     constructor() {
-        console.log('Council: Using Ollama (qwen3:4b) as AI engine');
+        console.log(`Council: Using OpenRouter (${process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat'}) as AI engine`);
     }
 
     async getMarketDecision(analysisPacket) {
@@ -11,7 +11,7 @@ class Council {
         const prompt = this.generatePrompt(analysisPacket);
         const systemPrompt = this.getSystemPrompt();
 
-        return await ollama.analyze(prompt, systemPrompt);
+        return await openrouter.analyze(prompt, systemPrompt);
     }
 
     getSystemPrompt() {

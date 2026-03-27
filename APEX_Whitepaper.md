@@ -33,7 +33,7 @@ intervention.
 
 The system is built entirely on free and open-source technologies, with
 zero monthly operating cost. It uses locally-run large language models
-(LLMs) via Ollama as its primary reasoning engine, supplemented by
+(LLMs) via OpenRouter as its primary reasoning engine, supplemented by
 free-tier cloud APIs (Groq, Gemini Flash) for news analysis and
 cross-validation. All trading activity, lessons, and performance metrics
 are stored in a local SQLite database.
@@ -55,7 +55,7 @@ APEX operates in two phases:
 - Multi-concept analysis: SMC, technical analysis, price action,
   Wyckoff, fundamental
 
-- Multi-LLM council: Ollama (local) + Groq + Gemini for consensus-based
+- Multi-LLM council: OpenRouter (primary) + Groq + Gemini for consensus-based
   decisions
 
 - Real-time chart watching --- reacts to every closed candle across 6
@@ -108,7 +108,7 @@ feedback flow back upward to improve future decisions.
   2             **Setup          All 5 trading concept scanners fire on
                 detection**      every closed candle; confluence scorer
 
-  3             **LLM council**  Ollama + Groq + Gemini reason in
+  3             **LLM council**  OpenRouter + Groq + Gemini reason in
                                  parallel; consensus check before
                                  proceeding
 
@@ -247,8 +247,8 @@ direction.
   ------------------ -------------- ------------ ----------------------------
   **Model**          **Provider**   **Cost**     **Role**
 
-  **Qwen2.5:14b /    Ollama (local) **Free       Primary analyst --- SMC
-  Llama3.1:8b**                     (local)**    structure, Wyckoff, trade
+  **DeepSeek / Llama** OpenRouter     **Paid /      Primary analyst --- SMC
+  (via OpenRouter)**                Credits**    structure, Wyckoff, trade
                                                  plan, post-trade lessons
 
   **Llama3.1:70b**   Groq (free     **Free       News sentiment, macro bias,
@@ -381,7 +381,7 @@ closed trade, the system triggers an automated post-trade review.
 2.  The system assembles a review packet: the original trade plan,
     entry/exit prices, outcome (P&L), and market conditions at the time.
 
-3.  The packet is sent to the primary Ollama model with a structured
+3.  The packet is sent to the primary OpenRouter model with a structured
     prompt asking: what was predicted, what actually happened, what the
     model got right, what it missed, and what it will do differently
     next time.
@@ -457,8 +457,8 @@ total monthly operating cost is \$0.
   **MT5 bridge**      Python 3.11 +      **Free**       Tick data, order
                       MetaTrader5 lib                   execution, account info
 
-  **Primary LLM**     Ollama +           **Free         Market analysis, trade
-                      Qwen2.5:14b        (local)**      planning, lessons
+  **Primary LLM**     OpenRouter +       **Paid /       Market analysis, trade
+                      DeepSeek/Llama     Credits**      planning, lessons
 
   **News LLM**        Groq API --- Llama **Free tier**  News sentiment, macro
                       3.1 70B                           bias
@@ -549,7 +549,7 @@ network.*
   llm/council.js              Orchestrates all 3 LLMs, consensus logic,
                               output parsing
 
-  llm/ollama.js               Local Ollama REST API adapter
+  llm/openrouter.js           OpenRouter API adapter
 
   llm/groq.js                 Groq API adapter (free tier)
 
@@ -654,7 +654,7 @@ free.
   **2**       **Analysis       All 5 concept modules (SMC, TA, PA,
               engine**         Wyckoff, Fundamental), confluence scorer
 
-  **3**       **LLM council**  Ollama adapter, Groq adapter, Gemini
+  **3**       **LLM council**  OpenRouter adapter, Groq adapter, Gemini
                                adapter, consensus logic, prompt
                                engineering
 
