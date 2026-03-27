@@ -159,10 +159,13 @@ void ProcessCommands(string json)
    if(!OrderSend(request, result))
    {
       int err = GetLastError();
-      Print("APEX: EXECUTION ERROR ", err, " - ", ErrorDescription(err));
+      Print("APEX: EXECUTION ERROR ", err);
       // Fallback: Try ORDER_FILLING_IOC if FOK fails
       request.type_filling = ORDER_FILLING_IOC;
-      OrderSend(request, result);
+      if(!OrderSend(request, result))
+      {
+         Print("APEX: FALLBACK ERROR ", GetLastError());
+      }
    }
    else
    {
