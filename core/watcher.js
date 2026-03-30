@@ -11,7 +11,6 @@ class MT5Watcher extends events.EventEmitter {
     start() {
         console.log('Watcher: Initializing REST Bridge Listener...');
         
-        // Listen to the market_data event from the server
         server.on('market_data', (data) => {
             // Forward market data as events for the detector
             this.emit('data', data);

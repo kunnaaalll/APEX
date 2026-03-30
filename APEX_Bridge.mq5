@@ -5,8 +5,11 @@
 //+------------------------------------------------------------------+
 #property copyright "APEX Trading"
 #property link      "https://apex.trading"
-#property version   "1.00"
+#property version   "2.00"
 #property strict
+
+#include <Trade\Trade.mqh>
+CTrade trade;
 
 //--- Input parameters
 input string   ServerURL = "http://127.0.0.1:3000/update";
@@ -18,7 +21,7 @@ input int      PollInterval = 1000; // ms
 int OnInit()
 {
    EventSetMillisecondTimer(PollInterval);
-   Print("APEX: Bridge Initialized. Monitoring ", _Symbol);
+   Print("APEX v2: Bridge Initialized. Monitoring ", _Symbol);
    return(INIT_SUCCEEDED);
 }
 
@@ -54,29 +57,41 @@ void SendUpdate()
    
    if(copied <= 0) return;
    
+   // Get spread info
+   double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+   double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double spread = ask - bid;
+   
    // Create JSON manually to avoid large dependency
    string json = "{";
    json += "\"symbol\":\"" + _Symbol + "\",";
    json += "\"timeframe\":\"" + EnumToString(_Period) + "\",";
+   json += "\"spread\":" + DoubleToString(spread, _Digits) + ",";
+   json += "\"ask\":" + DoubleToString(ask, _Digits) + ",";
+   json += "\"bid\":" + DoubleToString(bid, _Digits) + ",";
    json += "\"account\": {";
    json += "\"balance\":" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + ",";
-   json += "\"equity\":" + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2);
+   json += "\"equity\":" + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2) + ",";
+   json += "\"margin\":" + DoubleToString(AccountInfoDouble(ACCOUNT_MARGIN), 2);
    json += "},";
    json += "\"candles\": [";
    
-   for(int i=0; i<10; i++) // Last 10 candles for now
+   // Send 50 candles in CHRONOLOGICAL order (oldest first, newest last)
+   int candleCount = MathMin(50, copied);
+   for(int i = candleCount - 1; i >= 0; i--) // Reverse: oldest first
    {
       json += "{";
       json += "\"time\":" + IntegerToString(rates[i].time) + ",";
       json += "\"open\":" + DoubleToString(rates[i].open, _Digits) + ",";
       json += "\"high\":" + DoubleToString(rates[i].high, _Digits) + ",";
       json += "\"low\":" + DoubleToString(rates[i].low, _Digits) + ",";
-      json += "\"close\":" + DoubleToString(rates[i].close, _Digits);
+      json += "\"close\":" + DoubleToString(rates[i].close, _Digits) + ",";
+      json += "\"volume\":" + IntegerToString(rates[i].tick_volume);
       json += "}";
-      if(i < 9) json += ",";
+      if(i > 0) json += ",";
    }
    // Add positions
-   json += ",\"positions\": [";
+   json += "],\"positions\": [";
    int total = PositionsTotal();
    for(int i=0; i<total; i++)
    {
@@ -90,7 +105,8 @@ void SendUpdate()
          json += "\"price_open\":" + DoubleToString(PositionGetDouble(POSITION_PRICE_OPEN), _Digits) + ",";
          json += "\"sl\":" + DoubleToString(PositionGetDouble(POSITION_SL), _Digits) + ",";
          json += "\"tp\":" + DoubleToString(PositionGetDouble(POSITION_TP), _Digits) + ",";
-         json += "\"profit\":" + DoubleToString(PositionGetDouble(POSITION_PROFIT), 2);
+         json += "\"profit\":" + DoubleToString(PositionGetDouble(POSITION_PROFIT), 2) + ",";
+         json += "\"volume\":" + DoubleToString(PositionGetDouble(POSITION_VOLUME), 2);
          json += "}";
          if(i < total - 1) json += ",";
       }
@@ -108,7 +124,7 @@ void SendUpdate()
       string response = CharArrayToString(result);
       if(StringLen(response) > 2)
       {
-         ProcessCommands(response);
+         ProcessCommandsList(response);
       }
    }
    else if(res == -1)
@@ -118,80 +134,186 @@ void SendUpdate()
 }
 
 //+------------------------------------------------------------------+
-//| Open a trade from JSON command                                   |
+//| Extract multiple commands from JSON array                        |
 //+------------------------------------------------------------------+
-void ProcessCommands(string json)
+void ProcessCommandsList(string json)
 {
    if(StringFind(json, "\"commands\":[]") > -1) return;
    
-   // Parse command array
-   int startObj = StringFind(json, "{", StringFind(json, "commands"));
-   if(startObj == -1) return;
-   
-   string cmd = StringSubstr(json, startObj);
-   string sym = GetJsonValue(cmd, "symbol");
-   string dir = GetJsonValue(cmd, "direction");
-   double sl  = StringToDouble(GetJsonValue(cmd, "sl"));
-   double tp  = StringToDouble(GetJsonValue(cmd, "tp"));
-   double vol = StringToDouble(GetJsonValue(cmd, "volume"));
-
-   if(vol <= 0) vol = 0.01;
-   if(sym == "") sym = _Symbol;
-
-   Print("APEX: Executing ", dir, " on ", sym, " vol ", vol);
-
-   MqlTradeRequest request;
-   MqlTradeResult  result;
-   ZeroMemory(request);
-   ZeroMemory(result);
-
-   request.action   = TRADE_ACTION_DEAL;
-   request.symbol   = sym;
-   request.volume   = vol;
-   request.type     = (dir == "BUY") ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
-   request.price    = (request.type == ORDER_TYPE_BUY) ? SymbolInfoDouble(sym, SYMBOL_ASK) : SymbolInfoDouble(sym, SYMBOL_BID);
-   request.sl       = sl;
-   request.tp       = tp;
-   request.magic    = 123456;
-   request.comment  = "APEX Trade";
-   request.type_filling = ORDER_FILLING_FOK; // Changed from IOC to FOK for broker compatibility
-
-   if(!OrderSend(request, result))
+   // Very basic JSON array parser for commands
+   int startObj = StringFind(json, "{", StringFind(json, "\"commands\""));
+   while (startObj != -1)
    {
-      int err = GetLastError();
-      Print("APEX: EXECUTION ERROR ", err);
-      // Fallback: Try ORDER_FILLING_IOC if FOK fails
-      request.type_filling = ORDER_FILLING_IOC;
-      if(!OrderSend(request, result))
-      {
-         Print("APEX: FALLBACK ERROR ", GetLastError());
-      }
-   }
-   else
-   {
-      Print("APEX: TRADE OPENED! Ticket: ", result.deal);
+       int endObj = StringFind(json, "}", startObj);
+       if (endObj == -1) break;
+       
+       string cmd = StringSubstr(json, startObj, endObj - startObj + 1);
+       ProcessCommand(cmd);
+       
+       startObj = StringFind(json, "{", endObj);
    }
 }
 
+//+------------------------------------------------------------------+
+//| Process individual command                                       |
+//+------------------------------------------------------------------+
+void ProcessCommand(string cmd)
+{
+   string sym = GetJsonValueString(cmd, "symbol");
+   string type = GetJsonValueString(cmd, "type");
+   
+   if(sym == "") sym = _Symbol;
 
-string GetJsonValue(string text, string key)
+   if (type == "MARKET" || type == "")
+   {
+       ExecuteMarketOrder(sym, cmd);
+   }
+   else if (type == "MODIFY_SL")
+   {
+       ulong ticket = (ulong)GetJsonValueDouble(cmd, "ticket");
+       double sl = GetJsonValueDouble(cmd, "sl");
+       double tp = GetJsonValueDouble(cmd, "tp");
+       if (ticket > 0 && PositionSelectByTicket(ticket)) {
+           trade.PositionModify(ticket, sl, tp);
+           Print("APEX: Modified SL for ticket ", ticket, " to ", sl);
+       }
+   }
+   else if (type == "CLOSE_PARTIAL")
+   {
+       ulong ticket = (ulong)GetJsonValueDouble(cmd, "ticket");
+       double vol = GetJsonValueDouble(cmd, "volume");
+       if (ticket > 0 && PositionSelectByTicket(ticket)) {
+           trade.PositionClosePartial(ticket, vol);
+           Print("APEX: Closed partial ", vol, " for ticket ", ticket);
+       }
+   }
+   else if (type == "CLOSE_TRADE")
+   {
+       ulong ticket = (ulong)GetJsonValueDouble(cmd, "ticket");
+       if (ticket > 0 && PositionSelectByTicket(ticket)) {
+           trade.PositionClose(ticket);
+           Print("APEX: Closed trade ticket ", ticket);
+       }
+   }
+}
+
+void ExecuteMarketOrder(string sym, string cmd)
+{
+   string dir = GetJsonValueString(cmd, "direction");
+   double sl  = GetJsonValueDouble(cmd, "sl");
+   double tp  = GetJsonValueDouble(cmd, "tp");
+   double vol = GetJsonValueDouble(cmd, "volume");
+   double riskMult = GetJsonValueDouble(cmd, "riskMultiplier");
+   if (riskMult <= 0) riskMult = 1.0;
+
+   if(vol <= 0) vol = 0.01;
+
+   // STRICT PROTOCOL: Reject trades without SL and TP
+   if (sl <= 0 || tp <= 0)
+   {
+      Print("APEX: TRADE REJECTED! Missing or invalid Stop Loss / Take Profit for ", sym, " (SL: ", sl, ", TP: ", tp, ")");
+      return;
+   }
+
+   double price_ref = (dir == "BUY") ? SymbolInfoDouble(sym, SYMBOL_ASK) : SymbolInfoDouble(sym, SYMBOL_BID);
+   double risk_pts = MathAbs(price_ref - sl);
+
+   // Risk calculation ($1000 base * riskMult)
+   // Based on 1% of $10000 = $100. Actually let's use account balance 1%
+   double risk_percent = 0.01 * riskMult;
+   double risk_amount = AccountInfoDouble(ACCOUNT_BALANCE) * risk_percent;
+   double tick_value = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_VALUE);
+   double tick_size = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_SIZE);
+   
+   if (tick_size == 0) return;
+   
+   double loss_for_1_lot = (risk_pts / tick_size) * tick_value;
+   if(loss_for_1_lot > 0)
+   {
+      vol = risk_amount / loss_for_1_lot;
+      double min_vol = SymbolInfoDouble(sym, SYMBOL_VOLUME_MIN);
+      double max_vol = SymbolInfoDouble(sym, SYMBOL_VOLUME_MAX);
+      double step_vol = SymbolInfoDouble(sym, SYMBOL_VOLUME_STEP);
+      vol = MathRound(vol / step_vol) * step_vol;
+      if (vol < min_vol) vol = min_vol;
+      if (vol > max_vol) vol = max_vol;
+   }
+
+   Print("APEX Executing ", dir, " on ", sym, " vol: ", vol, " risk: $", risk_amount);
+
+   int digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+   double point = SymbolInfoDouble(sym, SYMBOL_POINT);
+   double min_stop = SymbolInfoInteger(sym, SYMBOL_TRADE_STOPS_LEVEL) * point;
+   if(min_stop == 0) min_stop = 10 * point;
+
+   sl = NormalizeDouble(sl, digits);
+   tp = NormalizeDouble(tp, digits);
+
+   trade.SetExpertMagicNumber(123456);
+   
+   bool res = false;
+   if(dir == "BUY")
+   {
+      double ask = SymbolInfoDouble(sym, SYMBOL_ASK);
+      double bid = SymbolInfoDouble(sym, SYMBOL_BID);
+      if(sl > 0 && sl >= bid - min_stop) sl = bid - min_stop;
+      if(tp > 0 && tp <= bid + min_stop) tp = bid + min_stop;
+      res = trade.Buy(vol, sym, ask, sl, tp, "APEX");
+   }
+   else
+   {
+      double ask = SymbolInfoDouble(sym, SYMBOL_ASK);
+      double bid = SymbolInfoDouble(sym, SYMBOL_BID);
+      if(sl > 0 && sl <= ask + min_stop) sl = ask + min_stop;
+      if(tp > 0 && tp >= ask - min_stop) tp = ask - min_stop;
+      res = trade.Sell(vol, sym, bid, sl, tp, "APEX");
+   }
+   
+   if(!res) { Print("APEX: EXECUTION ERROR ", trade.ResultRetcode(), " - ", trade.ResultComment()); }
+   else { Print("APEX: TRADE OPENED! Ticket: ", trade.ResultDeal()); }
+}
+
+
+string GetJsonValueString(string text, string key)
 {
    string search = "\"" + key + "\":\"";
    int start = StringFind(text, search);
-   if(start == -1) 
+   if(start != -1) 
    {
-      // Try numeric value
-      search = "\"" + key + "\":";
-      start = StringFind(text, search);
-      if(start == -1) return "";
-      start += StringLen(search);
-      int end = StringFind(text, ",", start);
-      if(end == -1) end = StringFind(text, "}", start);
-      return StringSubstr(text, start, end - start);
+       start += StringLen(search);
+       int end = StringFind(text, "\"", start);
+       if (end != -1) return StringSubstr(text, start, end - start);
    }
+   return "";
+}
+
+double GetJsonValueDouble(string text, string key)
+{
+   string search = "\"" + key + "\":";
+   int start = StringFind(text, search);
+   if(start == -1) return 0.0;
    
    start += StringLen(search);
-   int end = StringFind(text, "\"", start);
-   return StringSubstr(text, start, end - start);
+   
+   // Ignore optional quotes for numbers
+   if(StringSubstr(text, start, 1) == "\"") start++;
+   
+   int endComma = StringFind(text, ",", start);
+   int endBrace = StringFind(text, "}", start);
+   int endQuote = StringFind(text, "\"", start);
+   
+   int end = -1;
+   if (endComma != -1 && (end == -1 || endComma < end)) end = endComma;
+   if (endBrace != -1 && (end == -1 || endBrace < end)) end = endBrace;
+   if (endQuote != -1 && (end == -1 || endQuote < end)) end = endQuote;
+   
+   if (end != -1)
+   {
+       string val = StringSubstr(text, start, end - start);
+       StringTrimLeft(val);
+       StringTrimRight(val);
+       return StringToDouble(val);
+   }
+   return 0.0;
 }
 //+------------------------------------------------------------------+

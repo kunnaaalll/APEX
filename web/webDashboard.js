@@ -44,7 +44,7 @@ class WebDashboard extends events.EventEmitter {
     }
 
     broadcast(event, data) {
-        if (['council', 'trade', 'log'].includes(event)) {
+        if (['council', 'trade', 'log', 'performance', 'risk_status', 'stats'].includes(event)) {
             this.addToHistory(event, data);
         }
 
@@ -73,6 +73,8 @@ class WebDashboard extends events.EventEmitter {
             entry: pos.price_open || pos.entry || 0,
             sl: pos.sl || 0,
             tp: pos.tp || 0,
+            profit: pos.profit || 0,
+            volume: pos.volume || 0.1,
             time: pos.time || new Date().toLocaleTimeString('en-US', {hour12:false})
         }));
         
