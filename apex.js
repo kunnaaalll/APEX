@@ -244,6 +244,13 @@ async function main() {
         dashboard.broadcast('smart_entry_status', smartEntry.getStatus());
     }, 30000);
 
+    // 9. Periodic ML Intelligence broadcast (every 60 seconds)
+    setInterval(() => {
+        const intel = mlLoop.getIntelligence();
+        const weights = mlLoop.getWeights();
+        dashboard.sendIntelligence({ ...intel, weights });
+    }, 60000);
+
     dashboard.logMessage('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     dashboard.logMessage('APEX v3.0: SYSTEM LIVE');
     dashboard.logMessage('Monitoring: ' + watcher.symbols.join(', '));

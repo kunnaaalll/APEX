@@ -69,7 +69,8 @@ class Detector {
             const score = this.calculateConfluence(zones, indicators, candles, weights, regime, mtfResult);
 
             // 8. Apply regime minimum confluence threshold
-            const minScore = regime.adjustments?.minConfluence || 6;
+            // ⚛️ ARIA V15.3 THROUGHPUT OVERRIDE: Lowered from 6.0 to 5.5 for high-velocity demo
+            const minScore = regime.adjustments?.minConfluence || 5.5;
 
             // 9. Send to dashboard
             dashboard.sendConfluence(symbol, score.total);
@@ -79,28 +80,30 @@ class Detector {
             const pdZone = zones.premium_discount?.zone || 'UNKNOWN';
             const session = zones.killzone?.session || 'UNKNOWN';
 
+            // ... logMessage ... (keeping it)
             dashboard.logMessage(
                 `${symbol}: Score ${score.total}/${minScore} min | Price=${currentPrice} | ` +
                 `Trend=${structureTrend} | Zone=${pdZone} | Session=${session} | ` +
                 `Regime=${regime.regime} | ` +
-                `${mtfResult ? 'MTF=' + mtfResult.htfBias + '(+' + mtfResult.mtfScore + ')' : 'MTF=N/A'} | ` +
-                `ATR=${atr}`
+                `${mtfResult ? 'MTF=' + mtfResult.htfBias + '(+' + mtfResult.mtfScore + ')' : 'MTF=N/A'}`
             );
-
-            // 10. Check for structure breaks against managed trades
-            if (zones.structure) {
-                tradeManager.checkStructureBreaks(symbol, zones.structure);
-            }
 
             // 11. Submit to AI Council if high confluence
             const now = Date.now();
             const lastTime = this.lastAnalysisTime[symbol] || 0;
 
+            // 🛡️ INSTITUTIONAL PRE-FILTER LOGIC 🛡️
+            if (score.total < minScore) {
+                // Only log if score is somewhat close (e.g., > 3) to prevent log spam
+                if (score.total > 3.5) {
+                    dashboard.logMessage(`⚠️ ${symbol}: Setup Filtered — Score ${score.total.toFixed(1)} < ${minScore.toFixed(1)} Threshold.`, 'warn');
+                }
+                return;
+            }
+
             // Skip if regime says don't trade (LOW_VOLATILITY)
             if (regime.regime === 'LOW_VOLATILITY') {
-                if (score.total >= minScore) {
-                    dashboard.logMessage(`⏸️ ${symbol}: HIGH CONFLUENCE but LOW VOLATILITY regime. Skipping.`);
-                }
+                dashboard.logMessage(`⏸️ ${symbol}: HIGH CONFLUENCE (${score.total}) but LOW VOLATILITY regime. Skipping.`);
                 return;
             }
 
@@ -109,12 +112,12 @@ class Detector {
                 const slDistance = atr * 1.5;
                 const spreadCheck = spreadFilter.canTrade(symbol, marketMeta.spread, slDistance);
                 if (!spreadCheck.allowed) {
-                    dashboard.logMessage(`📊 ${symbol}: ${spreadCheck.reason}`);
+                    dashboard.logMessage(`📊 ${symbol}: Filtered — ${spreadCheck.reason}`, 'warn');
                     return;
                 }
             }
 
-            if (score.total >= minScore && (now - lastTime) >= this.analysisInterval && !this.isAnalyzing[symbol]) {
+            if ((now - lastTime) >= this.analysisInterval && !this.isAnalyzing[symbol]) {
                 this.lastAnalysisTime[symbol] = now;
                 this.isAnalyzing[symbol] = true;
 

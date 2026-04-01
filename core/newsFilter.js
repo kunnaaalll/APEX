@@ -48,11 +48,11 @@ class NewsFilter {
             'GDP', 'Gross Domestic Product'
         ];
 
-        // Timing windows (milliseconds)
-        this.preNewsLockout = 30 * 60 * 1000;     // 30 min before HIGH news
-        this.postNewsCooldown = 15 * 60 * 1000;   // 15 min after HIGH news
+        // ⚛️ ARIA V15.5 GFT COMPLIANCE: Extended lockout windows
+        this.preNewsLockout = 35 * 60 * 1000;     // 35 min (GFT rule is 5 min, we use 35 for safety)
+        this.postNewsCooldown = 20 * 60 * 1000;   // 20 min after HIGH news
         this.criticalLockout = 60 * 60 * 1000;    // 60 min before CRITICAL news
-        this.criticalCooldown = 30 * 60 * 1000;   // 30 min after CRITICAL news
+        this.criticalCooldown = 45 * 60 * 1000;   // 45 min after CRITICAL news
 
         this.lastLogTime = 0;
     }

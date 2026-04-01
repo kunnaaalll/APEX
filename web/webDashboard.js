@@ -1,17 +1,73 @@
 const path = require('path');
 const events = require('events');
+const express = require('express');
 
 class WebDashboard extends events.EventEmitter {
     constructor() {
         super();
         this.clients = [];
         this.history = []; 
-        this.maxHistory = 100;
+        this.maxHistory = 25; // ⚡ PERFORMANCE: Reduced buffer for faster first-paint
     }
 
     attach(app) {
+        // ⚛️ ARIA V15.2 NEURAL PATCH: Robust JSON Parsing
+        app.use(express.json({ limit: '50mb' }));
+        app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+        const distPath = path.join(__dirname, '../web-v6/dist');
+        app.use(express.static(distPath));
+
         app.get('/', (req, res) => {
-            res.sendFile(path.join(__dirname, 'dashboard.html'));
+            res.sendFile(path.join(distPath, 'index.html'));
+        });
+
+        // 🗣️ NEURAL COMMAND CHAT ENDPOINTS
+        app.post('/chat', async (req, res) => {
+            const { message, context } = req.body;
+            if (!message) return res.status(400).json({ status: 'error', reason: 'Empty command pulse.' });
+            
+            const commandExpert = require('../llm/commandExpert');
+            try {
+                const result = await commandExpert.processMessage(message, context);
+                res.json({ status: 'ok', response: result });
+            } catch (e) {
+                this.logMessage(`🚨 Neural Link Error: ${e.message}`, 'error');
+                res.status(500).json({ status: 'error', reason: 'Brain state unreachable.' });
+            }
+        });
+
+        app.post('/confirm', async (req, res) => {
+            const { command } = req.body;
+            const commandExpert = require('../llm/commandExpert');
+            await commandExpert.executeConfirmedCommand(command);
+            res.json({ status: 'ok' });
+        });
+
+        app.post('/config', async (req, res) => {
+            const riskGuard = require('../core/riskGuard');
+            const newStatus = riskGuard.updateConfig(req.body);
+            this.broadcast('risk_status', newStatus);
+            res.json({ status: 'ok', config: newStatus });
+        });
+
+        app.post('/strike', async (req, res) => {
+            const { symbol, direction } = req.body;
+            const orderManager = require('../core/orderManager');
+            
+            try {
+                this.logMessage(`🎯 MANUAL STRIKE REQUEST: ${symbol} ${direction}`, 'info');
+                const result = await orderManager.manualStrike(symbol, direction || 'BUY');
+                
+                if (result.status === 'ok') {
+                    res.json({ status: 'ok' });
+                } else {
+                    res.status(403).json({ status: 'error', reason: result.reason });
+                }
+            } catch (e) {
+                this.logMessage(`🚨 Strike Execution Failed: ${e.message}`, 'error');
+                res.status(500).json({ status: 'error', reason: 'Execution engine error: ' + e.message });
+            }
         });
 
         app.get('/events', (req, res) => {
@@ -24,7 +80,7 @@ class WebDashboard extends events.EventEmitter {
             
             res.write('event: ping\ndata: {}\n\n');
             
-            // 📡 Replay history with a slight delay to ensure browser is ready
+            // 📡 Replay history with a slight delay
             setTimeout(() => {
                 this.history.forEach(item => {
                     try {
@@ -66,7 +122,6 @@ class WebDashboard extends events.EventEmitter {
 
     updateTrades(positions) {
         if (!positions) return;
-        // 🛠️ MAP MT5 POSITIONS TO UI FORMAT
         const trades = positions.map(pos => ({
             symbol: pos.symbol,
             direction: (pos.type === 0 || pos.type === 'BUY') ? 'BUY' : 'SELL',
@@ -78,7 +133,6 @@ class WebDashboard extends events.EventEmitter {
             time: pos.time || new Date().toLocaleTimeString('en-US', {hour12:false})
         }));
         
-        // Clear old ones on UI then send new ones
         this.broadcast('clear_trades', {});
         trades.forEach(t => this.broadcast('trade', t));
     }
@@ -94,6 +148,10 @@ class WebDashboard extends events.EventEmitter {
         this.broadcast('council', decision);
     }
     
+    sendIntelligence(intel) {
+        this.broadcast('intelligence', intel);
+    }
+
     sendConfluence(symbol, score) { this.broadcast('confluence', { symbol, score }); }
     render() {}
 }

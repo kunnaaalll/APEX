@@ -3,240 +3,197 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>APEX v3.0 — Institutional Trading Command Center</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <title>APEX Aria — Institutional Terminal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-primary: #05070a;
-            --bg-glass: rgba(13, 17, 28, 0.7);
-            --bg-card: #0d111c;
+            --bg-ink: #07090c;
+            --bg-surface: #0e1117;
             --border: rgba(255, 255, 255, 0.08);
-            --text-primary: #f1f5f9;
+            --border-hover: rgba(255, 255, 255, 0.15);
+            --text-primary: #f8fafc;
             --text-secondary: #94a3b8;
             --text-muted: #475569;
-            --green: #10b981;
-            --green-glow: rgba(16, 185, 129, 0.3);
-            --red: #f43f5e;
-            --red-glow: rgba(244, 63, 94, 0.3);
             --blue: #3b82f6;
-            --blue-glow: rgba(59, 130, 246, 0.3);
-            --purple: #8b5cf6;
-            --purple-glow: rgba(139, 92, 246, 0.3);
-            --accent-gradient: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-            --glass-blur: blur(12px);
+            --green: #10b981;
+            --red: #ef4444;
+            --accent: #6366f1;
+            --code-font: 'JetBrains Mono', monospace;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
         body {
             font-family: 'Inter', sans-serif;
-            background: var(--bg-primary);
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.05) 0px, transparent 50%),
-                radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.05) 0px, transparent 50%);
+            background: var(--bg-ink);
             color: var(--text-primary);
             min-height: 100vh;
-            padding: 24px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
+            padding: 40px;
+            display: flex; flex-direction: column; gap: 32px;
         }
 
-        .glass {
-            background: var(--bg-glass);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-        }
+        /* 🏰 Header 🏰 */
+        .hdr { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 24px; }
+        .hdr-brand { display: flex; align-items: baseline; gap: 12px; }
+        .hdr-logo { font-size: 24px; font-weight: 800; letter-spacing: -1px; }
+        .hdr-ver { font-size: 10px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+        .hdr-status { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; color: var(--green); text-transform: uppercase; letter-spacing: 1px; }
+        .dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; box-shadow: 0 0 10px var(--green); }
 
-        /* Header */
-        .header {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 16px 24px;
+        .hdr-meta { display: flex; gap: 32px; font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+        .hdr-val { color: var(--text-primary); margin-left: 4px; }
+
+        /* 📊 KPI Strip 📊 */
+        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+        .stat-item { padding: 32px; background: var(--bg-surface); }
+        .stat-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+        .stat-val { font-size: 32px; font-weight: 700; letter-spacing: -1px; }
+        .stat-sub { font-family: var(--code-font); font-size: 12px; color: var(--text-muted); margin-top: 6px; display: flex; items: center; gap: 6px; }
+
+        /* 🧭 Market Navigator 🧭 */
+        .nav-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+        .nav-row { 
+            display: grid; grid-template-columns: 1.5fr 1fr 2fr 1fr; align-items: center; 
+            padding: 16px 24px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; transition: 0.2s;
         }
-        .header-left { display: flex; align-items: center; gap: 20px; }
-        .logo-wrap { display: flex; align-items: baseline; gap: 8px; }
-        .logo { 
-            font-size: 28px; font-weight: 900; letter-spacing: -1px;
-            background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; 
-            background-clip: text;
-        }
-        .version {
-            font-size: 10px; padding: 2px 8px; border-radius: 20px; background: rgba(255,255,255,0.05); color: var(--text-muted); font-weight: 700;
-        }
-        .status { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-radius: 24px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-        .status.live { background: rgba(16,185,129,0.08); color: var(--green); border: 1px solid var(--green-glow); }
-        .status.offline { background: rgba(244,63,94,0.08); color: var(--red); border: 1px solid var(--red-glow); }
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); animation: pulse 2s infinite; }
-        @keyframes pulse { 0%,100%{opacity:1; transform: scale(1);} 50%{opacity:0.5; transform: scale(0.8);} }
+        .nav-row:hover { border-color: var(--border-hover); background: rgba(255,255,255,0.02); }
+        .nav-sym { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 12px; }
+        .nav-price { font-family: var(--code-font); font-size: 13px; color: var(--text-secondary); }
         
-        .header-controls { display: flex; align-items: center; gap: 24px; }
-        .model-tag { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--blue); padding: 8px 16px; border-radius: 8px; background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.1); }
-        .clock { font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--text-muted); font-weight: 500; }
+        /* The Confluence Bar (Modern Heatmap) */
+        .heatmap { display: flex; gap: 3px; height: 4px; width: 120px; align-items: center; }
+        .heat-seg { height: 4px; width: 8px; background: rgba(255,255,255,0.05); border-radius: 1px; }
+        .heat-on { background: var(--blue); box-shadow: 0 0 5px var(--blue); }
+        .heat-hi { background: var(--green); box-shadow: 0 0 5px var(--green); }
 
-        /* KPI Row */
-        .account-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
-        .stat-card { padding: 20px; transition: transform 0.2s, border-color 0.2s; position: relative; overflow: hidden;}
-        .stat-card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.15); }
-        .stat-card::after { content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 2px; background: var(--accent-gradient); opacity: 0.3; }
-        .stat-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); margin-bottom: 10px; }
-        .stat-value { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; color: var(--text-primary); }
-        .stat-sub { font-size: 12px; color: var(--text-secondary); margin-top: 6px; display: flex; align-items: center; gap: 6px; font-weight: 500;}
-        
-        /* MTF Panel */
-        .mtf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
-        .mtf-card { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
-        .mtf-header { display: flex; justify-content: space-between; align-items: center; }
-        .mtf-symbol { font-size: 18px; font-weight: 800; letter-spacing: -0.5px; }
-        .mtf-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-        .mtf-box { background: rgba(0,0,0,0.2); padding: 12px; border-radius: 12px; border: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 4px;}
-        .mtf-label { font-size: 10px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; }
-        .mtf-bias { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
-        .bias-bull { color: var(--green); background: rgba(16,185,129,0.1); }
-        .bias-bear { color: var(--red); background: rgba(244,63,94,0.1); }
-        .bias-neut { color: var(--text-muted); background: rgba(255,255,255,0.05); }
+        .tf-pills { display: flex; gap: 6px; }
+        .tf-pill { font-size: 9px; font-weight: 800; padding: 4px 8px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 4px; color: var(--text-muted); }
+        .tf-active-bull { color: var(--green); border-color: var(--green); background: rgba(16, 185, 129, 0.05); }
+        .tf-active-bear { color: var(--red); border-color: var(--red); background: rgba(239, 68, 68, 0.05); }
 
-        /* Confluence Metric */
-        .conf-circle { position: relative; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; }
-        .conf-circle svg { transform: rotate(-90deg); width: 60px; height: 60px; }
-        .conf-bg { fill: none; stroke: rgba(255,255,255,0.05); stroke-width: 6; }
-        .conf-progress { fill: none; stroke: var(--blue); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 170; stroke-dashoffset: 170; transition: stroke-dashoffset 0.5s ease; }
-        .conf-val { position: absolute; font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 800; }
+        /* 📂 Data Hub 📂 */
+        .hub { display: grid; grid-template-columns: 2fr 1fr; gap: 32px; }
+        .panel { display: flex; flex-direction: column; gap: 20px; }
+        .panel-hdr { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: var(--text-muted); display: flex; justify-content: space-between; }
 
-        /* Main Grid */
-        .dashboard-main { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; }
-        .column { display: flex; flex-direction: column; gap: 20px; }
+        /* Surgical Table */
+        .tbl-box { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 16px 24px; font-size: 10px; font-weight: 800; color: var(--text-muted); border-bottom: 1px solid var(--border); text-transform: uppercase; background: rgba(255,255,255,0.01); }
+        td { padding: 20px 24px; font-size: 13px; border-bottom: 1px solid var(--border); transition: 0.1s; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(255,255,255,0.01); }
 
-        /* Tables & Logs */
-        .table-wrap { overflow-x: auto; margin-top: 10px; }
-        table { width: 100%; border-collapse: separate; border-spacing: 0 4px; }
-        th { text-align: left; padding: 12px 16px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); }
-        td { padding: 16px; background: rgba(255,255,255,0.02); color: var(--text-secondary); font-size: 13px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-        td:first-child { border-left: 1px solid var(--border); border-radius: 12px 0 0 12px; }
-        td:last-child { border-right: 1px solid var(--border); border-radius: 0 12px 12px 0; }
-        tr:hover td { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.1); }
+        /* Clean Logs */
+        .logs { height: 400px; overflow-y: auto; font-family: var(--code-font); font-size: 12px; padding: 20px; background: #000; border-radius: 12px; display: flex; flex-direction: column; gap: 6px; }
+        .log-ln { display: flex; gap: 16px; opacity: 0.7; }
+        .log-ts { color: var(--text-muted); min-width: 80px; }
 
-        .log-wrap { height: 400px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 20px; display: flex; flex-direction: column; gap: 4px; background: rgba(0,0,0,0.1); border-radius: 12px; }
-        .log-entry { display: flex; gap: 12px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.02); }
-        .log-t { color: var(--text-muted); min-width: 70px; }
-        
-        .council-wrap { height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
-        .council-item { padding: 16px; border-radius: 12px; border: 1px solid var(--border); background: rgba(255,255,255,0.01); transition: all 0.2s;}
-        .council-item:hover { border-color: var(--blue-glow); background: rgba(59, 130, 246, 0.03); }
-        .council-head { display: flex; justify-content: space-between; margin-bottom: 8px; align-items: center; }
-        .council-sym { font-weight: 800; font-size: 14px; }
-        .council-score { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: var(--blue); }
-        .council-text { font-size: 12.5px; line-height: 1.6; color: var(--text-secondary); opacity: 0.9; }
+        /* AI Feed */
+        .feeds { height: 580px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+        .feed-item { padding: 24px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; transition: 0.2s; }
+        .feed-item:hover { border-color: var(--border-hover); }
+        .feed-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .feed-head { font-weight: 700; font-size: 14px; }
+        .feed-score { font-family: var(--code-font); font-size: 12px; color: var(--blue); }
+        .feed-text { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
 
-        .tag { font-size: 10px; font-weight: 800; padding: 4px 10px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .tag-buy { background: rgba(16,185,129,0.1); color: var(--green); border: 1px solid var(--green-glow); }
-        .tag-sell { background: rgba(244,63,94,0.1); color: var(--red); border: 1px solid var(--red-glow); }
+        .badge { font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; }
+        .badge-buy { background: rgba(16, 185, 129, 0.1); color: var(--green); }
+        .badge-sell { background: rgba(239, 68, 68, 0.1); color: var(--red); }
 
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
 
-        .positive { color: var(--green); }
-        .negative { color: var(--red); }
-        .mono { font-family: 'JetBrains Mono', monospace; }
-        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .up { color: var(--green); }
+        .down { color: var(--red); }
+        .mono { font-family: var(--code-font); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .fade { animation: fadeIn 0.4s ease-out forwards; }
     </style>
 </head>
 <body>
-    <div class="header glass">
-        <div class="header-left">
-            <div class="logo-wrap">
-                <div class="logo">APEX</div>
-                <div class="version">V3.0 CORE</div>
-            </div>
-            <div class="status live" id="connStatus">
-                <span class="dot"></span>
-                <span id="statusText">SYSTEM ONLINE</span>
-            </div>
+    <div class="hdr">
+        <div class="hdr-brand">
+            <div class="hdr-logo">APEX</div>
+            <div class="hdr-ver">ARIA TERMINAL v5.0</div>
         </div>
-        <div class="header-controls">
-            <span class="model-tag" id="activeModel">Groq: Llama-3-70B-Versatile</span>
-            <span class="clock" id="clock">00:00:00 UTC</span>
+        <div style="display:flex; gap:40px; align-items:center;">
+            <div class="hdr-meta">
+                <span>AI MODEL <span class="hdr-val" id="modelName">GROQ 70B</span></span>
+                <span>DATA BRIDGE <span class="hdr-val" id="latency">STABLE (M15)</span></span>
+                <span>UTC <span class="hdr-val" id="clock">00:00:00</span></span>
+            </div>
+            <div class="hdr-status">
+                <div class="dot"></div>
+                <span>SYSTEM SYNCHRONIZED</span>
+            </div>
         </div>
     </div>
 
-    <div class="account-row">
-        <div class="stat-card glass">
-            <div class="stat-label">Net Balance</div>
-            <div class="stat-value mono" id="balance">$0.00</div>
-            <div class="stat-sub">Prop Protocol: Strict 1% Risk</div>
+    <div class="stats">
+        <div class="stat-item">
+            <div class="stat-label">Total Balance</div>
+            <div class="stat-val mono" id="balance">$0.00</div>
+            <div class="stat-sub">Capital: Strict 1% Risk</div>
         </div>
-        <div class="stat-card glass">
-            <div class="stat-label">Equity / Float</div>
-            <div class="stat-value mono" id="equity">$0.00</div>
-            <div class="stat-sub mono" id="eqDiff">$0.00</div>
+        <div class="stat-item">
+            <div class="stat-label">Market Equity</div>
+            <div class="stat-val mono" id="equity">$0.00</div>
+            <div class="stat-sub mono" id="eqDiff">+$0.00 (0.0%)</div>
         </div>
-        <div class="stat-card glass">
+        <div class="stat-item">
+            <div class="stat-label">System Performance</div>
+            <div class="stat-val mono" id="winRate">0.0%</div>
+            <div class="stat-sub" id="tradeCount">0 Trades / 1000 Total</div>
+        </div>
+        <div class="stat-item">
             <div class="stat-label">Sharpe Ratio</div>
-            <div class="stat-value mono" id="sharpe">0.00</div>
-            <div class="stat-sub" id="sharpeLevel">Awaiting Data</div>
-        </div>
-        <div class="stat-card glass">
-            <div class="stat-label">Expectancy / SQN</div>
-            <div class="stat-value mono" id="expectancy">0.00</div>
-            <div class="stat-sub" id="sqn">SQN: 0.00</div>
-        </div>
-        <div class="stat-card glass">
-            <div class="stat-label">Performance Gate</div>
-            <div class="stat-value mono" id="winRate">0.0%</div>
-            <div class="stat-sub" id="tradeCount">0 / 1000 Trades</div>
+            <div class="stat-val mono" id="sharpe">0.00</div>
+            <div class="stat-sub" id="sharpeStatus">Calculating Stability...</div>
         </div>
     </div>
 
-    <div class="mtf-grid" id="mtfGrid"></div>
+    <div class="panel">
+        <div class="panel-hdr"><span>📡 ASSET SURVEILLANCE MATRIX</span></div>
+        <div class="nav-grid" id="marketNav"></div>
+    </div>
 
-    <div class="dashboard-main">
-        <div class="column">
-            <div class="card glass" style="padding: 24px;">
-                <div class="card-title" style="font-size: 14px; font-weight: 800; color: var(--text-muted); margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
-                    <span>⚡ INSTITUTIONAL ORDER FLOW TRACKER</span>
-                    <span class="version" id="openTradesCount">0 ACTIVE</span>
-                </div>
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Symbol</th>
-                                <th>Direction</th>
-                                <th>Lot</th>
-                                <th>Entry</th>
-                                <th>Stop Loss</th>
-                                <th>Take Profit</th>
-                                <th>Floating PnL</th>
-                                <th>State</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tradesBody">
-                            <tr><td colspan="8" style="text-align: center; padding: 60px; color: var(--text-muted); font-style: italic;">Awaiting institutional footprints...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+    <div class="hub">
+        <div class="panel">
+            <div class="panel-hdr">
+                <span>⚡ ACTIVE INSTITUTIONAL EXPOSURE</span>
+                <span id="exposureCount">0 ACTIVE</span>
             </div>
-            
-            <div class="card glass" style="padding: 24px;">
-                <div class="card-title" style="font-size: 14px; font-weight: 800; color: var(--text-muted); margin-bottom: 20px;">REAL-TIME SYSTEM ACTION LOGS</div>
-                <div class="log-wrap" id="logContainer"></div>
+            <div class="tbl-box">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Side</th>
+                            <th>Lot</th>
+                            <th>Entry</th>
+                            <th>Stop</th>
+                            <th>Target</th>
+                            <th>PnL</th>
+                            <th>State</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tradesBody">
+                        <tr><td colspan="8" style="text-align:center; padding: 60px; color: var(--text-muted); font-style: italic;">Awaiting signal execution pipeline...</td></tr>
+                    </tbody>
+                </table>
             </div>
+
+            <div class="panel-hdr"><span>🛡️ CORE EXECUTION LOGS</span></div>
+            <div class="logs" id="logContainer"></div>
         </div>
 
-        <div class="column">
-            <div class="card glass" style="padding: 24px;">
-                <div class="card-title" style="font-size: 14px; font-weight: 800; color: var(--text-muted); margin-bottom: 20px;">🧠 SMC INTELLIGENCE COUNCIL</div>
-                <div class="council-wrap" id="councilFeed"></div>
-            </div>
+        <div class="panel">
+            <div class="panel-hdr"><span>🧠 COUNCIL DISCOURSE FEED</span></div>
+            <div class="feeds" id="councilFeed"></div>
 
-            <div class="card glass" style="padding: 24px;">
-                <div class="card-title" style="font-size: 14px; font-weight: 800; color: var(--text-muted); margin-bottom: 20px;">📅 ECONOMIC VOLATILITY MAP</div>
-                <div id="calendarFeed" style="display:flex; flex-direction:column; gap:10px;"></div>
-            </div>
+            <div class="panel-hdr"><span>📅 MACRO EVENT TRACKER</span></div>
+            <div id="calendarFeed" style="display:flex; flex-direction:column; gap:8px;"></div>
         </div>
     </div>
 
@@ -248,7 +205,7 @@
             const now = new Date();
             document.getElementById('clock').textContent = now.getUTCHours().toString().padStart(2, '0') + ":" + 
                                                            now.getUTCMinutes().toString().padStart(2, '0') + ":" + 
-                                                           now.getUTCSeconds().toString().padStart(2, '0') + " UTC";
+                                                           now.getUTCSeconds().toString().padStart(2, '0');
         }
         setInterval(updateClock, 1000); updateClock();
 
@@ -256,25 +213,16 @@
             const es = new EventSource('/events');
 
             es.onopen = () => {
-                document.getElementById('statusText').textContent = 'SYSTEM ONLINE';
-                document.getElementById('connStatus').className = 'status live';
-                addLog('Command Center synchronized via SSE Secure Mesh', 'success');
-            };
-
-            es.onerror = () => {
-                document.getElementById('statusText').textContent = 'RECALIBRATING';
-                document.getElementById('connStatus').className = 'status offline';
+                addLog('Command Center synchronized via Aria Protocol.', 'info');
             };
 
             es.addEventListener('market_data', e => {
                 const d = JSON.parse(e.data);
                 if (!d.symbol) return;
-                
                 if (!symbols[d.symbol]) symbols[d.symbol] = { confluence: 0, price: '—' };
                 if (d.price) symbols[d.symbol].price = d.price;
-                
                 if (!mtfs[d.symbol]) mtfs[d.symbol] = { h1: 'NEUT', h4: 'NEUT', d1: 'NEUT' };
-                renderMTF();
+                renderMarketNav();
             });
 
             es.addEventListener('account', e => {
@@ -282,120 +230,106 @@
                 if (d && d.balance) {
                     document.getElementById('balance').textContent = '$' + parseFloat(d.balance).toLocaleString('en-US', {minimumFractionDigits:2});
                     document.getElementById('equity').textContent = '$' + parseFloat(d.equity).toLocaleString('en-US', {minimumFractionDigits:2});
-                    const diff = (d.equity - d.balance).toFixed(2);
+                    const diff = d.equity - d.balance;
+                    const diffPct = (diff / d.balance * 100).toFixed(1);
                     const el = document.getElementById('eqDiff');
-                    el.textContent = (diff >= 0 ? '▲ +$' : '▼ -$') + Math.abs(diff).toFixed(2);
-                    el.className = diff >= 0 ? 'stat-sub positive mono' : 'stat-sub negative mono';
+                    el.textContent = (diff >= 0 ? '+' : '-') + '$' + Math.abs(diff).toFixed(2) + ` (${diffPct}%)`;
+                    el.className = diff >= 0 ? 'stat-sub up mono' : 'stat-sub down mono';
                 }
             });
 
             es.addEventListener('performance', e => {
                 const d = JSON.parse(e.data);
-                document.getElementById('winRate').textContent = (d.winRate || 0) + '%';
-                document.getElementById('tradeCount').textContent = `${d.totalTrades || 0} / 1000 Trades`;
+                document.getElementById('winRate').textContent = (d.winRate || 0).toFixed(1) + '%';
+                document.getElementById('tradeCount').textContent = `${d.totalTrades || 0} Trades / 1000 Total`;
                 document.getElementById('sharpe').textContent = (parseFloat(d.sharpeRatio) || 0).toFixed(2);
-                document.getElementById('expectancy').textContent = '$' + (parseFloat(d.expectancy) || 0).toFixed(2);
-                document.getElementById('sqn').textContent = `SQN: ${(parseFloat(d.sqn) || 0).toFixed(2)}`;
                 
-                const sharpe = parseFloat(d.sharpeRatio || 0);
-                const sl = document.getElementById('sharpeLevel');
-                if (sharpe >= 2) { sl.textContent = 'Institutional'; sl.style.color = 'var(--purple)'; }
-                else if (sharpe >= 1) { sl.textContent = 'Stable'; sl.style.color = 'var(--green)'; }
-                else { sl.textContent = 'Volatile'; sl.style.color = 'var(--red)'; }
+                const s = parseFloat(d.sharpeRatio || 0);
+                const st = document.getElementById('sharpeStatus');
+                if (s >= 2) { st.textContent = 'PRO GRADE'; st.style.color = 'var(--accent)'; }
+                else if (s >= 1) { st.textContent = 'STABLE'; st.style.color = 'var(--green)'; }
+                else { st.textContent = 'VOLATILE'; st.style.color = 'var(--red)'; }
             });
 
-            es.addEventListener('council', e => {
-                addCouncilEntry(JSON.parse(e.data));
-            });
-
-            es.addEventListener('log', e => {
-                const d = JSON.parse(e.data);
-                addLog(d.message, d.type);
-            });
-
-            es.addEventListener('clear_trades', () => {
-                document.getElementById('tradesBody').innerHTML = '';
-            });
-
-            es.addEventListener('trade', e => {
-                addTrade(JSON.parse(e.data));
-            });
-            
-            es.addEventListener('calendar', e => {
-                renderCalendar(JSON.parse(e.data));
-            });
+            es.addEventListener('council', e => { addCouncilEntry(JSON.parse(e.data)); });
+            es.addEventListener('log', e => { addLog(JSON.parse(e.data).message, JSON.parse(e.data).type); });
+            es.addEventListener('clear_trades', () => { document.getElementById('tradesBody').innerHTML = ''; });
+            es.addEventListener('trade', e => { addTrade(JSON.parse(e.data)); });
+            es.addEventListener('calendar', e => { renderCalendar(JSON.parse(e.data)); });
             
             es.addEventListener('confluence', e => {
                 const d = JSON.parse(e.data);
-                if (d.symbol && symbols[d.symbol]) {
+                if (d.symbol) {
+                    if (!symbols[d.symbol]) symbols[d.symbol] = { confluence: 0, price: '—' };
                     symbols[d.symbol].confluence = d.score;
-                    renderMTF();
+                    renderMarketNav();
                 }
             });
         }
 
-        function renderMTF() {
-            const grid = document.getElementById('mtfGrid');
-            const items = Object.entries(symbols).sort((a,b) => b[1].confluence - a[1].confluence).slice(0, 4);
+        function renderMarketNav() {
+            const grid = document.getElementById('marketNav');
+            const items = Object.entries(symbols).sort((a,b) => b[1].confluence - a[1].confluence);
             if (items.length === 0) return;
 
             grid.innerHTML = items.map(([sym, s]) => {
                 const mtf = mtfs[sym] || { h1: 'NEUT', h4: 'NEUT', d1: 'NEUT' };
-                const offset = 170 - (170 * (s.confluence || 0) / 10);
+                const heatSegs = Array.from({length: 12}, (_, i) => {
+                    const threshold = (i / 12) * 10;
+                    const on = s.confluence >= threshold;
+                    const hi = s.confluence >= 8;
+                    return `<div class="heat-seg ${on ? (hi ? 'heat-hi' : 'heat-on') : ''}"></div>`;
+                }).join('');
+
                 return `
-                    <div class="mtf-card glass fade-in">
-                        <div class="mtf-header">
-                            <span class="mtf-symbol">${sym}</span>
-                            <div class="conf-circle">
-                                <svg><circle class="conf-bg" cx="30" cy="30" r="27"></circle><circle class="conf-progress" cx="30" cy="30" r="27" style="stroke-dashoffset: ${offset}"></circle></svg>
-                                <span class="conf-val">${(s.confluence || 0).toFixed(0)}</span>
-                            </div>
+                    <div class="nav-row fade">
+                        <div class="nav-sym">${sym} <span class="nav-price">${s.price}</span></div>
+                        <div class="heatmap">${heatSegs}</div>
+                        <div class="tf-pills">
+                            <span class="tf-pill ${mtf.h1 === 'BULL' ? 'tf-active-bull' : (mtf.h1 === 'BEAR' ? 'tf-active-bear' : '')}">H1</span>
+                            <span class="tf-pill ${mtf.h4 === 'BULL' ? 'tf-active-bull' : (mtf.h4 === 'BEAR' ? 'tf-active-bear' : '')}">H4</span>
+                            <span class="tf-pill ${mtf.d1 === 'BULL' ? 'tf-active-bull' : (mtf.d1 === 'BEAR' ? 'tf-active-bear' : '')}">D1</span>
                         </div>
-                        <div class="mtf-row">
-                            <div class="mtf-box"><span class="mtf-label">H1</span><span class="mtf-bias ${getBiasClass(mtf.h1)}">${mtf.h1}</span></div>
-                            <div class="mtf-box"><span class="mtf-label">H4</span><span class="mtf-bias ${getBiasClass(mtf.h4)}">${mtf.h4}</span></div>
-                            <div class="mtf-box"><span class="mtf-label">D1</span><span class="mtf-bias ${getBiasClass(mtf.d1)}">${mtf.d1}</span></div>
-                        </div>
+                        <div style="text-align:right; font-family:var(--code-font); font-weight:700; font-size:12px; color:var(--text-secondary)">SCORE: ${s.confluence.toFixed(1)}</div>
                     </div>
                 `;
             }).join('');
         }
 
-        function getBiasClass(b) {
-            if (b === 'BULL') return 'bias-bull';
-            if (b === 'BEAR') return 'bias-bear';
-            return 'bias-neut';
-        }
-
         function addLog(msg, type = 'info') {
-            const c = document.getElementById('logContainer');
-            const d = document.createElement('div');
-            d.className = 'log-entry';
-            const time = new Date().getUTCHours().toString().padStart(2, '0') + ":" + new Date().getUTCMinutes().toString().padStart(2, '0');
+            const container = document.getElementById('logContainer');
+            const el = document.createElement('div');
+            el.className = 'log-ln fade';
+            const ts = new Date().toLocaleTimeString('en-US', {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'});
             
             let color = 'var(--text-secondary)';
             if (type === 'success' || msg.includes('✅')) color = 'var(--green)';
-            if (type === 'error' || msg.includes('❌')) color = 'var(--red)';
-            if (type === 'warn' || msg.includes('⚠️')) color = 'var(--purple)';
+            if (type === 'error' || msg.includes('🚨')) color = 'var(--red)';
+            if (type === 'warn') color = 'var(--accent)';
 
-            d.innerHTML = `<span class="log-t">[${time}]</span><span style="color:${color}">${msg}</span>`;
-            c.insertBefore(d, c.firstChild);
-            if (c.children.length > 200) c.removeChild(c.lastChild);
+            el.innerHTML = `<span class="log-ts">${ts}</span><span style="color:${color}">${msg}</span>`;
+            container.insertBefore(el, container.firstChild);
+            if (container.children.length > 200) container.removeChild(container.lastChild);
         }
 
         function addCouncilEntry(d) {
-            const f = document.getElementById('councilFeed');
-            const item = document.createElement('div');
-            item.className = 'council-item fade-in';
-            item.innerHTML = `
-                <div class="council-head">
-                    <span class="council-sym">${d.symbol} <span class="tag ${d.direction === 'BUY' ? 'tag-buy' : 'tag-sell'}">${d.direction}</span></span>
-                    <span class="council-score">CONF: ${d.confidence}%</span>
+            const container = document.getElementById('councilFeed');
+            const el = document.createElement('div');
+            el.className = 'feed-item fade';
+            
+            const isBuy = d.direction === 'BUY';
+            const isSell = d.direction === 'SELL';
+            const colorClass = isBuy ? 'badge-buy' : isSell ? 'badge-sell' : '';
+
+            el.innerHTML = `
+                <div class="feed-top">
+                    <span class="feed-head">${d.symbol} <span class="badge ${colorClass}">${d.direction}</span></span>
+                    <span class="feed-score">${d.confidence}% CONF</span>
                 </div>
-                <div class="council-text">${d.rationale || 'Processing orders...'}</div>
+                <div class="feed-text">${d.rationale || 'Authenticating SMC data points...'}</div>
             `;
-            f.insertBefore(item, f.firstChild);
-            if (f.children.length > 20) f.removeChild(f.lastChild);
+            container.insertBefore(el, container.firstChild);
+            if (container.children.length > 15) container.removeChild(container.lastChild);
         }
 
         function addTrade(t) {
@@ -405,34 +339,41 @@
             
             if (!row) {
                 if (tbody.querySelector('td[colspan]')) tbody.innerHTML = '';
-                row = document.createElement('tr');
-                row.id = tradeId;
+                row = document.createElement('tr'); row.id = tradeId; row.className = 'fade';
                 tbody.insertBefore(row, tbody.firstChild);
             }
 
             const pnl = parseFloat(t.profit || 0);
+            const sideClass = t.direction === 'BUY' ? 'badge-buy' : 'badge-sell';
+
             row.innerHTML = `
-                <td class="mono" style="font-weight:800; color:var(--text-primary)">${t.symbol}</td>
-                <td><span class="tag ${t.direction === 'BUY' ? 'tag-buy' : 'tag-sell'}">${t.direction}</span></td>
+                <td style="font-weight:700">${t.symbol}</td>
+                <td><span class="badge ${sideClass}">${t.direction}</span></td>
                 <td class="mono">${t.volume}</td>
                 <td class="mono">${parseFloat(t.price_open || t.entry).toFixed(5)}</td>
-                <td class="mono">${parseFloat(t.sl).toFixed(5)}</td>
-                <td class="mono">${parseFloat(t.tp || 0).toFixed(5)}</td>
-                <td class="mono ${pnl >= 0 ? 'positive' : 'negative'}" style="font-weight:800">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
-                <td><span class="version" style="background:rgba(255,255,255,0.05)">MANAGED</span></td>
+                <td class="mono" style="color:var(--text-muted)">${parseFloat(t.sl).toFixed(5)}</td>
+                <td class="mono" style="color:var(--text-muted)">${parseFloat(t.tp || 0).toFixed(5)}</td>
+                <td class="mono ${pnl >= 0 ? 'up' : 'down'}" style="font-weight:700">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
+                <td><span class="hdr-ver">MANAGED</span></td>
             `;
-            document.getElementById('openTradesCount').textContent = `${tbody.childElementCount} ACTIVE`;
+            document.getElementById('exposureCount').textContent = `${tbody.childElementCount} ACTIVE`;
         }
-        
+
         function renderCalendar(events) {
-            const feed = document.getElementById('calendarFeed');
-            if (!events || events.length === 0) return;
-            feed.innerHTML = events.slice(0, 5).map(e => `
-                <div style="display:flex; justify-content:space-between; font-size:12px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid ${e.importance >= 3 ? 'var(--red-glow)' : 'var(--border)'}">
-                    <span style="font-weight:700; color:${e.importance >= 3 ? 'var(--red)' : 'var(--text-primary)'}">${e.currency} ${e.name}</span>
-                    <span class="mono" style="color:var(--text-muted)">${new Date(e.time * 1000).getUTCHours()}:${new Date(e.time * 1000).getUTCMinutes().toString().padStart(2,'0')}</span>
-                </div>
-            `).join('');
+            const container = document.getElementById('calendarFeed');
+            if (!events) return;
+            container.innerHTML = events.slice(0, 4).map(e => {
+                const isHigh = e.importance >= 3 || e.importance === 'HIGH';
+                return `
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding: 14px 20px; background: var(--bg-surface); border: 1px solid ${isHigh ? 'var(--red)' : var('--border')}; border-radius: 8px; border-opacity: 0.2">
+                        <div>
+                            <div style="font-weight:700; font-size:12px; color:${isHigh ? 'var(--red)' : 'var(--text-primary)'}">${e.currency} · ${e.name}</div>
+                            <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; margin-top:2px">${isHigh ? 'High Impact' : 'Normal'}</div>
+                        </div>
+                        <div class="mono" style="font-size:12px; color:var(--text-muted)">${new Date(e.time * 1000).getUTCHours().toString().padStart(2,'0')}:${new Date(e.time * 1000).getUTCMinutes().toString().padStart(2,'0')}</div>
+                    </div>
+                `;
+            }).join('');
         }
 
         connectSSE();

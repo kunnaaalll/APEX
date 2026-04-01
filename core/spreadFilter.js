@@ -96,10 +96,11 @@ class SpreadFilter {
         if (riskDistance > 0) {
             const spreadCostPercent = (current / riskDistance) * 100;
 
-            if (spreadCostPercent > 20) {
+            // ⚛️ ARIA V15.3 THROUGHPUT OVERRIDE: Relaxed from 20% to 30% for Monolith demo
+            if (spreadCostPercent > 30) {
                 return {
                     allowed: false,
-                    reason: `Spread cost too high: ${spreadCostPercent.toFixed(1)}% of risk (spread: ${current.toFixed(5)}, risk: ${riskDistance.toFixed(5)}). Max: 20%.`,
+                    reason: `Spread cost too high: ${spreadCostPercent.toFixed(1)}% of risk (spread: ${current.toFixed(5)}, risk: ${riskDistance.toFixed(5)}). Max: 30%.`,
                     spreadRatio: ratio,
                     spreadCostPercent
                 };

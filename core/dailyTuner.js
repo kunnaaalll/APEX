@@ -62,7 +62,7 @@ class DailyTuner {
     async getClosedTrades(limit) {
         return new Promise((resolve, reject) => {
             journal.db.all(
-                `SELECT confluences, outcome, pnl, pnl_percent FROM trades WHERE status = 'CLOSED' ORDER BY timestamp DESC LIMIT ?`,
+                `SELECT confluences, outcome, pnl FROM trades WHERE status = 'CLOSED' ORDER BY timestamp DESC LIMIT ?`,
                 [limit],
                 (err, rows) => {
                     if (err) reject(err);

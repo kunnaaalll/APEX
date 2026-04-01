@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#0A0A0C] text-slate-300 selection:bg-pink-500/30 overflow-hidden;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer components {
+  /* 🌑 OBSIDIAN PRISM UI (Glassmorphic Dark) 🌑 */
+  .lumina-card {
+    @apply bg-[#121417]/80 backdrop-blur-3xl rounded-[2.5rem] p-8 shadow-2xl shadow-black/50 border border-white/5 transition-all duration-500;
+  }
+
+  .lumina-sidebar {
+    @apply bg-black/40 backdrop-blur-2xl rounded-r-[3rem] shadow-2xl h-full flex flex-col items-center py-10 gap-10 border-r border-white/5;
+  }
+
+  /* 💠 MERCURY & ELECTRIC GRADIENTS 💠 */
+  .gradient-pink {
+    background: linear-gradient(135deg, #FF4B91 0%, #7928CA 100%);
+    @apply shadow-2xl shadow-pink-900/20;
+  }
+
+  .gradient-emerald {
+    background: linear-gradient(135deg, #00FF87 0%, #60EFFF 100%);
+    @apply shadow-2xl shadow-emerald-900/20;
+  }
+
+  .gradient-obsidian {
+    background: linear-gradient(135deg, #121417 0%, #0A0A0C 100%);
+    @apply border border-white/5;
+  }
+
+  /* ⚡ INTERACTIVE & STATUS PILLS ⚡ */
+  .pill-obsidian {
+    @apply px-4 py-1.5 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all duration-300 bg-white/5 border border-white/5 hover:bg-white/10;
+  }
+
+  /* 🎬 CINEMATIC SCROLLBAR STYLING 🎬 */
+  ::-webkit-scrollbar {
+    @apply w-1.5;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-black/20;
+  }
+
+  /* 🧬 NEURAL ANIMATION UTILS 🧬 */
+  .animate-pulse-slow {
+    animation: pulse 6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.1; }
+    50% { opacity: 0.3; }
+  }
+
+  .custom-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.1) rgba(0, 0, 0, 0.2);
+  }
+}

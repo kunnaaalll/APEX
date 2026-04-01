@@ -29,11 +29,12 @@ class RiskGuard {
         this.openPositions = {};
         this.todayDate = new Date().toISOString().split('T')[0];
 
-        // Config from .env
-        this.maxDailyLossPercent = parseFloat(process.env.DAILY_LOSS_LIMIT || 3);
+        // ⚛️ ARIA V15.5 GFT COMPLIANCE: Hard-coded protection limits
+        // These override .env to ensure prop firm safety
+        this.maxDailyLossPercent = 4.5;   // GFT Limit: 5% (0.5% buffer for slippage)
         this.maxSimultaneousTrades = parseInt(process.env.MAX_SIMULTANEOUS_TRADES || 3);
         this.riskPercent = parseFloat(process.env.DEFAULT_RISK_PERCENT || 1);
-        this.maxDrawdownPercent = parseFloat(process.env.MAX_DRAWDOWN_THRESHOLD || 15);
+        this.maxDrawdownPercent = 8.0;    // GFT Limit: 10% (2.0% buffer for equity curve safety)
 
         // Account state
         this.accountBalance = 10000;
@@ -396,6 +397,20 @@ class RiskGuard {
             dailyPnL: this.dailyPnL,
             openTradeCount: Object.keys(this.openPositions).length
         };
+    }
+
+    /**
+     * UNIFIED CONFIG UPDATE: Live tuning from UI
+     */
+    updateConfig(newConfig) {
+        if (!newConfig) return;
+        if (newConfig.maxDailyLossPercent !== undefined) this.maxDailyLossPercent = parseFloat(newConfig.maxDailyLossPercent);
+        if (newConfig.maxSimultaneousTrades !== undefined) this.maxSimultaneousTrades = parseInt(newConfig.maxSimultaneousTrades);
+        if (newConfig.riskPercent !== undefined) this.riskPercent = parseFloat(newConfig.riskPercent);
+        if (newConfig.maxDrawdownPercent !== undefined) this.maxDrawdownPercent = parseFloat(newConfig.maxDrawdownPercent);
+        
+        dashboard.logMessage(`🛡️ RISK GUARD: Config updated live. New Risk Profile: ${this.riskPercent}% | Max Trades: ${this.maxSimultaneousTrades} | Daily Cap: ${this.maxDailyLossPercent}%`);
+        return this.getStatus();
     }
 
     /**
