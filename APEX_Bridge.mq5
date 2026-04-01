@@ -7,14 +7,14 @@
 #property link      "https://apex.trading"
 #property version   "2.00"
 #property strict
-
+ 
 #include <Trade\Trade.mqh>
 CTrade trade;
-
+ 
 //--- Input parameters
 input string   ServerURL = "http://127.0.0.1:3000/update";
 input int      PollInterval = 1000; // ms
-
+ 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
@@ -24,7 +24,7 @@ int OnInit()
    Print("APEX v2: Bridge Initialized. Monitoring ", _Symbol);
    return(INIT_SUCCEEDED);
 }
-
+ 
 //+------------------------------------------------------------------+
 //| Expert deinitialization function                                 |
 //+------------------------------------------------------------------+
@@ -32,7 +32,7 @@ void OnDeinit(const int reason)
 {
    EventKillTimer();
 }
-
+ 
 //+------------------------------------------------------------------+
 //| Timer function                                                   |
 //+------------------------------------------------------------------+
@@ -40,7 +40,7 @@ void OnTimer()
 {
    SendUpdate();
 }
-
+ 
 //+------------------------------------------------------------------+
 //| Send market data to Node.js server                               |
 //+------------------------------------------------------------------+
@@ -152,38 +152,7 @@ void SendUpdate()
    json += ", \"candles_d1\": " + GetTFCandlesJSON(PERIOD_D1, 20);
    
    json += "}";
-}
-
-//+------------------------------------------------------------------+
-//| Get candle data as JSON for a specific timeframe                 |
-//+------------------------------------------------------------------+
-string GetTFCandlesJSON(ENUM_TIMEFRAMES period, int count)
-{
-   MqlRates rates[];
-   ArraySetAsSeries(rates, true);
-   int copied = CopyRates(_Symbol, period, 0, count, rates);
-   
-   if(copied <= 0) return "[]";
-   
-   string res = "[";
-   for(int i = copied - 1; i >= 0; i--)
-   {
-      res += "{";
-      res += "\"time\":" + IntegerToString(rates[i].time) + ",";
-      res += "\"open\":" + DoubleToString(rates[i].open, _Digits) + ",";
-      res += "\"high\":" + DoubleToString(rates[i].high, _Digits) + ",";
-      res += "\"low\":" + DoubleToString(rates[i].low, _Digits) + ",";
-      res += "\"close\":" + DoubleToString(rates[i].close, _Digits) + ",";
-      res += "\"volume\":" + IntegerToString(rates[i].tick_volume);
-      res += "}";
-      if(i > 0) res += ",";
-   }
-   res += "]";
-   return res;
-}
-
-
-   
+ 
    int len = StringToCharArray(json, post, 0, WHOLE_ARRAY, CP_UTF8) - 1;
    
    // Set MT5 allowed URL in Options -> Expert Advisors!
@@ -202,7 +171,7 @@ string GetTFCandlesJSON(ENUM_TIMEFRAMES period, int count)
       Print("APEX: WebRequest error. Check Options -> Expert Advisors -> Allow WebRequest for: http://localhost:3000");
    }
 }
-
+ 
 //+------------------------------------------------------------------+
 //| Extract multiple commands from JSON array                        |
 //+------------------------------------------------------------------+
@@ -223,7 +192,7 @@ void ProcessCommandsList(string json)
        startObj = StringFind(json, "{", endObj);
    }
 }
-
+ 
 //+------------------------------------------------------------------+
 //| Process individual command                                       |
 //+------------------------------------------------------------------+
@@ -233,7 +202,7 @@ void ProcessCommand(string cmd)
    string type = GetJsonValueString(cmd, "type");
    
    if(sym == "") sym = _Symbol;
-
+ 
    if (type == "MARKET" || type == "")
    {
        ExecuteMarketOrder(sym, cmd);
@@ -266,7 +235,7 @@ void ProcessCommand(string cmd)
        }
    }
 }
-
+ 
 void ExecuteMarketOrder(string sym, string cmd)
 {
    string dir = GetJsonValueString(cmd, "direction");
@@ -275,19 +244,19 @@ void ExecuteMarketOrder(string sym, string cmd)
    double vol = GetJsonValueDouble(cmd, "volume");
    double riskMult = GetJsonValueDouble(cmd, "riskMultiplier");
    if (riskMult <= 0) riskMult = 1.0;
-
+ 
    if(vol <= 0) vol = 0.01;
-
+ 
    // STRICT PROTOCOL: Reject trades without SL and TP
    if (sl <= 0 || tp <= 0)
    {
       Print("APEX: TRADE REJECTED! Missing or invalid Stop Loss / Take Profit for ", sym, " (SL: ", sl, ", TP: ", tp, ")");
       return;
    }
-
+ 
    double price_ref = (dir == "BUY") ? SymbolInfoDouble(sym, SYMBOL_ASK) : SymbolInfoDouble(sym, SYMBOL_BID);
    double risk_pts = MathAbs(price_ref - sl);
-
+ 
    // Risk calculation ($1000 base * riskMult)
    // Based on 1% of $10000 = $100. Actually let's use account balance 1%
    double risk_percent = 0.01 * riskMult;
@@ -308,27 +277,27 @@ void ExecuteMarketOrder(string sym, string cmd)
       if (vol < min_vol) vol = min_vol;
       if (vol > max_vol) vol = max_vol;
    }
-
+ 
    Print("APEX Executing ", dir, " on ", sym, " vol: ", vol, " risk: $", risk_amount);
-
+ 
    int digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
    double point = SymbolInfoDouble(sym, SYMBOL_POINT);
    double min_stop = SymbolInfoInteger(sym, SYMBOL_TRADE_STOPS_LEVEL) * point;
    if(min_stop == 0) min_stop = 10 * point;
-
+ 
    sl = NormalizeDouble(sl, digits);
    tp = NormalizeDouble(tp, digits);
-
+ 
    trade.SetExpertMagicNumber(123456);
    
-   bool res = false;
+   bool success = false;
    if(dir == "BUY")
    {
       double ask = SymbolInfoDouble(sym, SYMBOL_ASK);
       double bid = SymbolInfoDouble(sym, SYMBOL_BID);
       if(sl > 0 && sl >= bid - min_stop) sl = bid - min_stop;
       if(tp > 0 && tp <= bid + min_stop) tp = bid + min_stop;
-      res = trade.Buy(vol, sym, ask, sl, tp, "APEX");
+      success = trade.Buy(vol, sym, ask, sl, tp, "APEX");
    }
    else
    {
@@ -336,14 +305,14 @@ void ExecuteMarketOrder(string sym, string cmd)
       double bid = SymbolInfoDouble(sym, SYMBOL_BID);
       if(sl > 0 && sl <= ask + min_stop) sl = ask + min_stop;
       if(tp > 0 && tp >= ask - min_stop) tp = ask - min_stop;
-      res = trade.Sell(vol, sym, bid, sl, tp, "APEX");
+      success = trade.Sell(vol, sym, bid, sl, tp, "APEX");
    }
    
-   if(!res) { Print("APEX: EXECUTION ERROR ", trade.ResultRetcode(), " - ", trade.ResultComment()); }
+   if(!success) { Print("APEX: EXECUTION ERROR ", trade.ResultRetcode(), " - ", trade.ResultComment()); }
    else { Print("APEX: TRADE OPENED! Ticket: ", trade.ResultDeal()); }
 }
-
-
+ 
+ 
 string GetJsonValueString(string text, string key)
 {
    string search = "\"" + key + "\":\"";
@@ -356,7 +325,7 @@ string GetJsonValueString(string text, string key)
    }
    return "";
 }
-
+ 
 double GetJsonValueDouble(string text, string key)
 {
    string search = "\"" + key + "\":";
@@ -385,5 +354,33 @@ double GetJsonValueDouble(string text, string key)
        return StringToDouble(val);
    }
    return 0.0;
+}
+ 
+//+------------------------------------------------------------------+
+//| Get candle data as JSON for a specific timeframe                 |
+//+------------------------------------------------------------------+
+string GetTFCandlesJSON(ENUM_TIMEFRAMES period, int count)
+{
+   MqlRates rates[];
+   ArraySetAsSeries(rates, true);
+   int copied = CopyRates(_Symbol, period, 0, count, rates);
+   
+   if(copied <= 0) return "[]";
+   
+   string res_json = "[";
+   for(int i = copied - 1; i >= 0; i--)
+   {
+      res_json += "{";
+      res_json += "\"time\":" + IntegerToString(rates[i].time) + ",";
+      res_json += "\"open\":" + DoubleToString(rates[i].open, _Digits) + ",";
+      res_json += "\"high\":" + DoubleToString(rates[i].high, _Digits) + ",";
+      res_json += "\"low\":" + DoubleToString(rates[i].low, _Digits) + ",";
+      res_json += "\"close\":" + DoubleToString(rates[i].close, _Digits) + ",";
+      res_json += "\"volume\":" + IntegerToString(rates[i].tick_volume);
+      res_json += "}";
+      if(i > 0) res_json += ",";
+   }
+   res_json += "]";
+   return res_json;
 }
 //+------------------------------------------------------------------+
