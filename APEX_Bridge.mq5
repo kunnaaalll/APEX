@@ -111,7 +111,77 @@ void SendUpdate()
          if(i < total - 1) json += ",";
       }
    }
-   json += "]}";
+   // Add economic calendar events (built-in MT5, FREE!)
+   json += "],\"calendar\": [";
+   MqlCalendarValue calValues[];
+   datetime fromTime = TimeTradeServer();
+   datetime toTime = fromTime + 7200; // Next 2 hours
+   
+   int calCount = CalendarValueHistory(calValues, fromTime, toTime, NULL, NULL);
+   int calAdded = 0;
+   
+   for(int i = 0; i < calCount && calAdded < 20; i++)
+   {
+      MqlCalendarEvent calEvent;
+      if(!CalendarEventById(calValues[i].event_id, calEvent)) continue;
+      
+      // Only include MEDIUM and HIGH importance (1=low, 2=medium, 3=high)
+      if(calEvent.importance < 2) continue;
+      
+      MqlCalendarCountry calCountry;
+      if(!CalendarCountryById(calEvent.country_id, calCountry)) continue;
+      
+      // Filter to currencies we trade
+      string curr = calCountry.currency;
+      if(curr != "USD" && curr != "EUR" && curr != "GBP" && curr != "JPY" && 
+         curr != "AUD" && curr != "CHF" && curr != "CAD" && curr != "NZD") continue;
+      
+      if(calAdded > 0) json += ",";
+      json += "{";
+      json += "\"name\":\"" + calEvent.name + "\",";
+      json += "\"currency\":\"" + curr + "\",";
+      json += "\"importance\":" + IntegerToString(calEvent.importance) + ",";
+      json += "\"time\":" + IntegerToString(calValues[i].time);
+      json += "}";
+      calAdded++;
+   }
+   
+   // Add MTF Data (Phase 2 & 6 Requirement)
+   json += "], \"candles_h1\": " + GetTFCandlesJSON(PERIOD_H1, 25);
+   json += ", \"candles_h4\": " + GetTFCandlesJSON(PERIOD_H4, 25);
+   json += ", \"candles_d1\": " + GetTFCandlesJSON(PERIOD_D1, 20);
+   
+   json += "}";
+}
+
+//+------------------------------------------------------------------+
+//| Get candle data as JSON for a specific timeframe                 |
+//+------------------------------------------------------------------+
+string GetTFCandlesJSON(ENUM_TIMEFRAMES period, int count)
+{
+   MqlRates rates[];
+   ArraySetAsSeries(rates, true);
+   int copied = CopyRates(_Symbol, period, 0, count, rates);
+   
+   if(copied <= 0) return "[]";
+   
+   string res = "[";
+   for(int i = copied - 1; i >= 0; i--)
+   {
+      res += "{";
+      res += "\"time\":" + IntegerToString(rates[i].time) + ",";
+      res += "\"open\":" + DoubleToString(rates[i].open, _Digits) + ",";
+      res += "\"high\":" + DoubleToString(rates[i].high, _Digits) + ",";
+      res += "\"low\":" + DoubleToString(rates[i].low, _Digits) + ",";
+      res += "\"close\":" + DoubleToString(rates[i].close, _Digits) + ",";
+      res += "\"volume\":" + IntegerToString(rates[i].tick_volume);
+      res += "}";
+      if(i > 0) res += ",";
+   }
+   res += "]";
+   return res;
+}
+
 
    
    int len = StringToCharArray(json, post, 0, WHOLE_ARRAY, CP_UTF8) - 1;

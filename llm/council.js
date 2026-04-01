@@ -1,97 +1,179 @@
 /**
- * APEX LLM Council v2.0 — Enhanced with Memory and Self-Learning
+ * APEX LLM Council v3.0 — Adversarial Analysis with Multi-Provider AI
  * 
- * The brain of the system. Uses OpenRouter as the AI engine,
- * enhanced with:
- * - Lesson injection from past trades
- * - Performance-aware prompting
- * - Confidence calibration
- * - Pre-trade checklist
- * - Session-aware analysis
+ * Enhanced with:
+ * - Adversarial prompting (bull/bear case in single call)
+ * - Risk score gating (blocks high-risk setups)
+ * - Confidence calibration (learns from past confidence vs outcomes)
+ * - Pre-filter (cheap fast model rejects obvious rejects before expensive analysis)
+ * - Provider-agnostic via AI Router
+ * - Lesson injection from ML loop
  */
 
-const openrouter = require('./openrouter');
+const aiRouter = require('./aiRouter');
 const mlLoop = require('../core/ml_loop');
-const smc = require('../concepts/smc');
+const dashboard = require('../web/webDashboard');
 
 class Council {
     constructor() {
-        console.log(`Council: Using OpenRouter (${process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat'}) as AI engine`);
+        // Confidence calibration: tracks how accurate each confidence level has been
+        this.confidenceHistory = {};  // { '80': { total: 10, wins: 6 }, ... }
+        console.log('Council v3.0: Adversarial analysis with multi-provider AI');
     }
 
+    /**
+     * Main entry: Get a trade decision for a setup
+     * Two-stage: cheap pre-filter → expensive full analysis
+     */
     async getMarketDecision(analysisPacket) {
         console.log(`Council: Analyzing ${analysisPacket.symbol}...`);
 
-        // Get learned context from past trades
-        const learnedContext = await mlLoop.getLessonsForPrompt(analysisPacket.symbol);
+        // STAGE 1: Fast pre-filter (cheap model, saves expensive calls)
+        const shouldAnalyze = await this.preFilter(analysisPacket);
+        if (!shouldAnalyze) {
+            dashboard.logMessage(`🔍 Council Pre-Filter: ${analysisPacket.symbol} — Not worth deep analysis. Skipping.`);
+            return { direction: 'NEUTRAL', confidence: 0, rationale: 'Pre-filter rejected' };
+        }
 
-        const prompt = this.generatePrompt(analysisPacket, learnedContext);
+        // STAGE 2: Full adversarial analysis (best available model)
+        const learnedContext = await mlLoop.getLessonsForPrompt(analysisPacket.symbol);
+        const prompt = this.generateAdversarialPrompt(analysisPacket, learnedContext);
         const systemPrompt = this.getSystemPrompt();
 
-        return await openrouter.analyze(prompt, systemPrompt);
+        const result = await aiRouter.analyze(prompt, systemPrompt, { priority: 'high' });
+
+        // Log which provider answered
+        if (result._provider) {
+            dashboard.logMessage(`🤖 Council: ${analysisPacket.symbol} analyzed by ${result._provider} (${result._latency}ms, ${result._dailyRemaining} calls remaining)`);
+        }
+
+        // GATE 1: Risk score check
+        if (result.risk_score && result.risk_score >= 7) {
+            dashboard.logMessage(`🛑 Council: ${analysisPacket.symbol} — Risk score ${result.risk_score}/10 too high. Blocking.`, 'warn');
+            return { direction: 'NEUTRAL', confidence: 0, rationale: `Risk score too high: ${result.risk_score}/10. Bear case: ${result.bear_case || 'N/A'}` };
+        }
+
+        // GATE 2: Confidence calibration
+        if (result.direction !== 'NEUTRAL' && result.confidence > 0) {
+            const calibrated = this.calibrateConfidence(result.confidence);
+            if (calibrated < result.confidence) {
+                dashboard.logMessage(`📊 Confidence calibrated: ${result.confidence}% → ${calibrated}% (based on historical accuracy at this level)`);
+                result.confidence = calibrated;
+            }
+        }
+
+        // Log adversarial analysis
+        if (result.bull_case || result.bear_case) {
+            dashboard.logMessage(`📈 Bull: ${(result.bull_case || 'N/A').substring(0, 100)}`);
+            dashboard.logMessage(`📉 Bear: ${(result.bear_case || 'N/A').substring(0, 100)}`);
+        }
+
+        return result;
     }
 
+    /**
+     * Pre-filter: Quick yes/no check using cheap/fast model
+     * Saves ~60% of expensive analysis calls
+     */
+    async preFilter(packet) {
+        const prompt = `Quick assessment — should this setup be analyzed further?
+
+Symbol: ${packet.symbol} | Price: ${packet.currentPrice}
+Trend: ${packet.zones?.structure?.trend || 'UNKNOWN'}
+BOS: ${packet.zones?.structure?.bos ? 'YES' : 'NO'}
+CHoCH: ${packet.zones?.structure?.choch ? 'YES' : 'NO'}
+Order Blocks: ${packet.zones?.ob?.length || 0}
+FVGs: ${packet.zones?.fvg?.length || 0}
+Session: ${packet.zones?.killzone?.session || 'UNKNOWN'} (Quality: ${packet.zones?.killzone?.quality || 'UNKNOWN'})
+Premium/Discount: ${packet.zones?.premium_discount?.zone || 'UNKNOWN'}
+EMA20: ${packet.indicators?.ema20 || 0} EMA50: ${packet.indicators?.ema50 || 0}
+RSI: ${packet.indicators?.rsi || 50}
+Confluence Score: ${packet.confluenceBreakdown?.total || 0}/10
+
+Return ONLY: {"analyze": true/false, "reason": "brief why"}`;
+
+        const systemPrompt = 'You are a trading pre-filter. Return JSON only. Set analyze=true ONLY if the setup has clear structure (BOS or CHoCH), at least one POI (OB or FVG), and the session quality is at least MEDIUM. Otherwise analyze=false.';
+
+        try {
+            const result = await aiRouter.analyze(prompt, systemPrompt, { priority: 'prefilter', maxTokens: 100 });
+            
+            if (result.analyze === false || result.direction === 'NEUTRAL') {
+                return false;
+            }
+            return true;
+        } catch (e) {
+            // If pre-filter fails, allow analysis (don't block on pre-filter error)
+            return true;
+        }
+    }
+
+    /**
+     * System prompt: Elite trader with adversarial thinking
+     */
     getSystemPrompt() {
         return `You are APEX Trading Council — an elite ICT/SMC institutional trader with 20 years of experience managing billions in capital.
 
-YOUR TRADING PHILOSOPHY:
-- You trade like a sniper, not a machine gunner. Fewer, higher-quality trades.
-- You ONLY trade with the trend confirmed by market structure (BOS). Never counter-trend unless CHoCH is confirmed.
-- You buy in DISCOUNT zones only, sell in PREMIUM zones only.
-- You respect killzones — London and NY sessions are where the best setups form.
-- You understand that liquidity sweeps CREATE the best entry opportunities.
+YOUR CORE PHILOSOPHY:
+- Trade like a sniper, not a machine gunner. Quality over quantity.
+- ONLY trade with confirmed structure (BOS). Never counter-trend unless CHoCH is confirmed.
+- Buy ONLY in DISCOUNT zones, sell ONLY in PREMIUM zones.
+- You respect killzones — London and NY sessions produce the best setups.
+- Liquidity sweeps CREATE the best entry opportunities.
 
-ANALYSIS FRAMEWORK:
-1. Market Structure First: Is the trend bullish (higher highs/higher lows) or bearish? Don't fight the structure.
-2. Point of Interest: Is price at or near a valid OB, FVG, or breaker block?
-3. Entry Confirmation: Has there been a liquidity sweep + displacement + confirmation candle?
-4. Premium/Discount: Are you buying in discount (below 0.5 Fib of range) or selling in premium?
-5. Session Context: Is this a high-probability session (London/NY)?
+YOUR ANALYSIS MUST FOLLOW THIS STRUCTURE:
 
-DECISION RULES:
-- Only BUY/SELL if confidence >= 70%. Otherwise NEUTRAL.
-- NEVER enter without structure confirmation (BOS or CHoCH).
-- Min 1:2 Risk-Reward ratio.
-- Entry must be the CURRENT price provided.
+PHASE 1 — BULL CASE:
+List every reason to take this trade. What confluences support the setup? What structure confirms it? Why is this a high-probability opportunity?
 
-STOP LOSS PLACEMENT (CRITICAL):
-- SL behind the nearest structural level (swing low for BUY, swing high for SELL).
-- SL must be at least 1.5x ATR from entry — anything tighter gets stopped by noise.
-- Add spread to SL distance.
-- For Gold (XAU): SL $5-$20 from entry using ATR.
-- For Forex majors: 15-50 pips from entry.
-- For Forex crosses: 20-60 pips.
-- For JPY pairs: 20-60 pips.
+PHASE 2 — BEAR CASE:
+List every reason NOT to take this trade. What could go wrong? What is the market structure risk? What would invalidate this setup? Are we fighting a higher-timeframe trend? Is there news risk?
 
-TAKE PROFIT:
-- TP at the next liquidity pool, opposite order block, or key structure.
-- Minimum 2x SL distance (1:2 RR minimum).
+PHASE 3 — VERDICT:
+Weigh both cases honestly. ONLY recommend BUY/SELL if the bull case CLEARLY outweighs the bear case AND all pre-trade checklist items pass.
 
-CRITICAL CONSTRAINTS:
-- Never place SL more than 2% from entry.
-- Never place SL tighter than 1.5x ATR.
-- Use swing high/low reference for SL placement.
-- If market structure is unclear or ranging, return NEUTRAL.
-- If you're in a losing streak, be MORE selective, not less.
-- If recent lessons indicate a pattern isn't working, AVOID that setup.
-
-PRE-TRADE CHECKLIST (verify ALL before recommending BUY/SELL):
+PRE-TRADE CHECKLIST (ALL must pass for BUY/SELL):
 □ Market structure confirms direction (BOS in favor)
 □ Entry is at a valid POI (OB, FVG, breaker)
 □ Price is in correct zone (discount for BUY, premium for SELL)
-□ Session is active (London or NY, not Asian dead hours)
+□ Session is active (not off-hours or very low quality)
 □ No recent lesson advises against this exact setup type
 □ RR is at least 1:2
-□ SL is behind structural protection
+□ SL is behind structural protection (swing low for BUY, swing high for SELL)
+□ SL is at least 1.5x ATR from entry
 
-Return ONLY valid JSON: {"direction":"BUY|SELL|NEUTRAL","confidence":0-100,"entry":price,"sl":price,"tp":price,"rationale":"why"}`;
+RISK SCORING (1-10):
+1-3: Low risk (clear trend, strong confluences, good session)
+4-6: Medium risk (some confluence, some uncertainty)
+7-10: High risk (fighting structure, unclear setup, bad session, recent losses)
+
+STOP LOSS RULES:
+- SL behind nearest structural level
+- SL at least 1.5x ATR from entry
+- For Gold: SL $5-$20 from entry
+- For Forex majors: 15-50 pips
+- NEVER place SL more than 2% from entry
+
+Return ONLY valid JSON:
+{
+  "direction": "BUY|SELL|NEUTRAL",
+  "confidence": 0-100,
+  "risk_score": 1-10,
+  "bull_case": "key reasons for the trade",
+  "bear_case": "key reasons against the trade",
+  "entry": price,
+  "sl": price,
+  "tp": price,
+  "rationale": "final verdict summary"
+}`;
     }
 
-    generatePrompt(packet, learnedContext = '') {
+    /**
+     * Generate adversarial analysis prompt with full market context
+     */
+    generateAdversarialPrompt(packet, learnedContext = '') {
         const trend = packet.indicators.ema20 > packet.indicators.ema50 ? 'BULLISH' : 'BEARISH';
         const minSL = (packet.atr * 1.5).toFixed(5);
-        
-        // Get structure info
+
         const structure = packet.zones.structure || {};
         const premiumDiscount = packet.zones.premium_discount || {};
         const killzone = packet.zones.killzone || {};
@@ -134,22 +216,63 @@ Recent Sweeps: ${JSON.stringify(liquidity.sweeps || 'none')}
 Session: ${killzone.session || 'UNKNOWN'} (${killzone.description || ''})
 Quality: ${killzone.quality || 'UNKNOWN'}
 
+=== CONFLUENCE SCORE ===
+Total: ${packet.confluenceBreakdown?.total || 0}/10
+Breakdown: ${JSON.stringify(packet.confluenceBreakdown?.breakdown || {})}
+
 === PRICE ACTION (Last ${packet.candles?.length || 0} candles, oldest → newest) ===
-${packet.candles ? packet.candles.map((c, i) => `[${i+1}] O:${c.open} H:${c.high} L:${c.low} C:${c.close}`).join('\n') : 'No candles available'}
+${packet.candles ? packet.candles.map((c, i) => `[${i + 1}] O:${c.open} H:${c.high} L:${c.low} C:${c.close}`).join('\n') : 'No candles available'}
 `;
 
-        // Inject learned context (THE KEY TO LEARNING)
+        // Inject learned context
         if (learnedContext && learnedContext.trim().length > 0) {
             prompt += `\n${learnedContext}`;
         }
 
         prompt += `\n=== YOUR TASK ===
-Analyze this setup using your pre-trade checklist. 
-If ANY checklist item fails, return NEUTRAL.
+Run your FULL adversarial analysis (Bull Case → Bear Case → Verdict).
+If the bear case is strong, return NEUTRAL — capital preservation is priority #1.
 Place SL beyond the nearest swing ${trend === 'BULLISH' ? 'low' : 'high'}, at least ${minSL} from entry.
-Consider the learned lessons above — do NOT repeat past mistakes.`;
+Consider the learned lessons — do NOT repeat past mistakes.
+Assign a risk_score from 1-10 (7+ = auto-reject, be honest about risk).`;
 
         return prompt;
+    }
+
+    /**
+     * Calibrate confidence based on historical accuracy at each level
+     * If the model says 80% but historically only wins 55% at that level, discount it
+     */
+    calibrateConfidence(rawConfidence) {
+        const bucket = Math.round(rawConfidence / 10) * 10; // Group into 10s: 70, 80, 90
+        const history = this.confidenceHistory[bucket];
+
+        if (!history || history.total < 5) {
+            // Not enough data, return raw
+            return rawConfidence;
+        }
+
+        const actualWinRate = (history.wins / history.total) * 100;
+        
+        // If actual win rate is lower than claimed confidence, discount
+        if (actualWinRate < bucket) {
+            return Math.round(actualWinRate);
+        }
+
+        return rawConfidence;
+    }
+
+    /**
+     * Record trade outcome for confidence calibration
+     * Called by ml_loop when a trade closes
+     */
+    recordOutcome(confidence, won) {
+        const bucket = Math.round(confidence / 10) * 10;
+        if (!this.confidenceHistory[bucket]) {
+            this.confidenceHistory[bucket] = { total: 0, wins: 0 };
+        }
+        this.confidenceHistory[bucket].total++;
+        if (won) this.confidenceHistory[bucket].wins++;
     }
 }
 

@@ -44,7 +44,7 @@ class WebDashboard extends events.EventEmitter {
     }
 
     broadcast(event, data) {
-        if (['council', 'trade', 'log', 'performance', 'risk_status', 'stats'].includes(event)) {
+        if (['council', 'trade', 'log', 'performance', 'risk_status', 'stats', 'calendar'].includes(event)) {
             this.addToHistory(event, data);
         }
 

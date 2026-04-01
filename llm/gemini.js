@@ -1,58 +1,75 @@
+/**
+ * APEX Gemini Adapter (Free Tier)
+ * 
+ * Uses Google's Gemini API free tier.
+ * Free tier: ~1,500 RPD, dynamic limits per project.
+ * Model: gemini-2.0-flash (free, fast, good at JSON)
+ */
+
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 require('dotenv').config();
 
 class GeminiAdapter {
     constructor() {
         this.apiKey = process.env.GEMINI_API_KEY;
-        this.model = null;
+        this.model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+        this.client = null;
 
         if (this.apiKey) {
-            const genAI = new GoogleGenerativeAI(this.apiKey);
-            // Use flash-lite for lower quota consumption
-            this.model = genAI.getGenerativeModel({ 
-                model: 'gemini-2.0-flash-lite',
-                generationConfig: { responseMimeType: 'application/json' }
-            });
-            console.log('Gemini: Initialized with gemini-2.0-flash-lite (JSON mode)');
+            this.client = new GoogleGenerativeAI(this.apiKey);
         }
     }
 
-    async analyze(prompt, systemPrompt) {
-        if (!this.model) return null; // Signal to use fallback
+    get available() {
+        return !!(this.apiKey && this.client);
+    }
+
+    async analyze(prompt, systemPrompt, options = {}) {
+        if (!this.client) {
+            return { direction: 'NEUTRAL', confidence: 0, rationale: 'Gemini key missing' };
+        }
 
         try {
-            const result = await this.model.generateContent(`${systemPrompt}\n\n${prompt}`);
+            const model = this.client.getGenerativeModel({
+                model: this.model,
+                generationConfig: {
+                    temperature: 0.3,
+                    maxOutputTokens: options.maxTokens || 500,
+                    responseMimeType: 'application/json'
+                }
+            });
+
+            const fullPrompt = `${systemPrompt}\n\n${prompt}`;
+            const result = await model.generateContent(fullPrompt);
             const raw = result.response.text();
-            console.log('Gemini response:', raw.substring(0, 300));
-            return this.parse(raw);
-        } catch (error) {
-            if (error.message && error.message.includes('429')) {
-                console.log('Gemini: Rate limited, falling back to Ollama');
-            } else {
-                console.error('Gemini Error:', error.message);
+
+            try {
+                const parsed = JSON.parse(raw.trim());
+                return {
+                    direction: (parsed.direction || 'NEUTRAL').toUpperCase(),
+                    confidence: parseInt(parsed.confidence) || 0,
+                    entry: parseFloat(parsed.entry) || 0,
+                    sl: parseFloat(parsed.sl || parsed.stop_loss) || 0,
+                    tp: parseFloat(parsed.tp || parsed.take_profit) || 0,
+                    rationale: parsed.rationale || parsed.reason || 'Gemini analysis',
+                    bull_case: parsed.bull_case || '',
+                    bear_case: parsed.bear_case || '',
+                    risk_score: parseInt(parsed.risk_score) || 5
+                };
+            } catch (e) {
+                console.error('Gemini JSON Parse Error:', e.message);
+                return { direction: 'NEUTRAL', confidence: 0, rationale: 'Invalid JSON from Gemini' };
             }
-            return null; // Signal to use fallback
+        } catch (error) {
+            const status = error.status || error.code;
+            if (status === 429 || (error.message && error.message.includes('429'))) {
+                console.log('Gemini: Rate limited');
+                return { direction: 'NEUTRAL', confidence: 0, rationale: 'Gemini rate limited', _rateLimited: true };
+            }
+
+            console.error('Gemini Error:', error.message);
+            return { direction: 'NEUTRAL', confidence: 0, rationale: `Gemini error: ${error.message}`, _error: true };
         }
-    }
-
-    parse(raw) {
-        try { return this.norm(JSON.parse(raw.trim())); } catch (e) {}
-        const m = raw.match(/\{[\s\S]*?"direction"[\s\S]*?\}/);
-        if (m) try { return this.norm(JSON.parse(m[0])); } catch (e) {}
-        const cb = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-        if (cb) try { return this.norm(JSON.parse(cb[1].trim())); } catch (e) {}
-        return null;
-    }
-
-    norm(o) {
-        return {
-            direction: (o.direction || 'NEUTRAL').toUpperCase(),
-            confidence: parseInt(o.confidence) || 0,
-            entry: parseFloat(o.entry) || 0,
-            sl: parseFloat(o.sl || o.stop_loss) || 0,
-            tp: parseFloat(o.tp || o.take_profit) || 0,
-            rationale: o.rationale || o.reason || 'Gemini analysis'
-        };
     }
 }
 

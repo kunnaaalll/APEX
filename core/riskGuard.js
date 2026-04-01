@@ -16,6 +16,7 @@
 
 require('dotenv').config();
 const dashboard = require('../web/webDashboard');
+const newsFilter = require('./newsFilter');
 
 class RiskGuard {
     constructor() {
@@ -38,6 +39,10 @@ class RiskGuard {
         this.accountBalance = 10000;
         this.accountEquity = 10000;
         this.peakEquity = 10000;
+
+        // Equity curve trading — rolling trade outcomes
+        this.recentOutcomes = []; // Last 10 trades: true=win, false=loss
+        this.equityCurveCooldownUntil = 0;
     }
 
     /**
@@ -86,15 +91,30 @@ class RiskGuard {
         if (pnl > 0) {
             this.consecutiveWins++;
             this.consecutiveLosses = 0;
+            this.recentOutcomes.push(true);
         } else if (pnl < 0) {
             this.consecutiveLosses++;
             this.consecutiveWins = 0;
+            this.recentOutcomes.push(false);
         }
+
+        // Keep only last 10
+        if (this.recentOutcomes.length > 10) this.recentOutcomes.shift();
 
         // Losing streak cooldown
         if (this.consecutiveLosses >= 5) {
             this.cooldownUntil = Date.now() + (60 * 60 * 1000); // 1 hour
             dashboard.logMessage(`⛔ LOSING STREAK: ${this.consecutiveLosses} consecutive losses. Cooling down for 1 hour.`, 'warn');
+        }
+
+        // Equity curve trading: if rolling 10-trade win rate < 30%, pause for 4 hours
+        if (this.recentOutcomes.length >= 10) {
+            const wins = this.recentOutcomes.filter(x => x).length;
+            const rollingWR = (wins / this.recentOutcomes.length) * 100;
+            if (rollingWR < 30) {
+                this.equityCurveCooldownUntil = Date.now() + (4 * 60 * 60 * 1000);
+                dashboard.logMessage(`⛔ EQUITY CURVE: Rolling 10-trade WR at ${rollingWR.toFixed(0)}%. Pausing for 4 hours.`, 'warn');
+            }
         }
 
         this.lastTradeTime = Date.now();
@@ -108,7 +128,10 @@ class RiskGuard {
         this.checkDayReset();
 
         const checks = [
+            this.checkNewsFilter(symbol),
             this.checkDailyLossLimit(),
+            this.checkUnrealizedLoss(),
+            this.checkEquityCurve(),
             this.checkCooldown(),
             this.checkMaxOpenTrades(),
             this.checkCorrelation(symbol),
@@ -133,6 +156,59 @@ class RiskGuard {
             reason: 'All risk checks passed',
             adjustments
         };
+    }
+
+    /**
+     * Check: News filter — no trading near high-impact news
+     */
+    checkNewsFilter(symbol) {
+        try {
+            const newsCheck = newsFilter.canTrade(symbol);
+            if (!newsCheck.allowed) {
+                return {
+                    allowed: false,
+                    reason: newsCheck.reason
+                };
+            }
+        } catch (e) {
+            // News filter error should not block trading
+        }
+        return { allowed: true };
+    }
+
+    /**
+     * Check: Unrealized (floating) P&L — critical for account protection
+     * Current daily loss includes OPEN position losses, not just closed trades
+     */
+    checkUnrealizedLoss() {
+        let unrealizedPnL = 0;
+        for (const ticket in this.openPositions) {
+            unrealizedPnL += parseFloat(this.openPositions[ticket].profit || 0);
+        }
+        const totalDailyPnL = this.dailyPnL + unrealizedPnL;
+        const maxLoss = this.accountBalance * (this.maxDailyLossPercent / 100);
+
+        if (totalDailyPnL < -maxLoss) {
+            return {
+                allowed: false,
+                reason: `Daily loss limit (incl. floating): $${totalDailyPnL.toFixed(2)} realized + unrealized (max: -$${maxLoss.toFixed(2)}). No more trades.`
+            };
+        }
+        return { allowed: true };
+    }
+
+    /**
+     * Check: Equity curve trading — pause when rolling performance drops
+     */
+    checkEquityCurve() {
+        if (Date.now() < this.equityCurveCooldownUntil) {
+            const remaining = Math.ceil((this.equityCurveCooldownUntil - Date.now()) / 60000);
+            return {
+                allowed: false,
+                reason: `Equity curve cooldown: Rolling WR too low. ${remaining} minutes remaining.`
+            };
+        }
+        return { allowed: true };
     }
 
     /**

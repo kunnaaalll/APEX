@@ -1,12 +1,13 @@
 /**
- * APEX Order Manager v2.0
+ * APEX Order Manager v3.0
  * 
  * Enhanced with:
- * - Risk guard integration (checks all risk rules before execution)
- * - Trade manager registration (trades are actively managed after entry)
- * - Enhanced validation (structure-aware)
- * - Dynamic position sizing
+ * - Smart Entry integration (limit orders at POI vs market)
+ * - Dynamic position sizing (confluence + drawdown + streak aware)
+ * - Correlation management (prevents currency overexposure)
+ * - Spread validation (reject if spread > 20% of risk)
  * - Session-aware execution
+ * - Full validation chain before execution
  */
 
 const fs = require('fs');
@@ -16,6 +17,11 @@ const server = require('./server');
 const riskGuard = require('./riskGuard');
 const tradeManager = require('./tradeManager');
 const telegram = require('../notify/telegram');
+const positionSizer = require('./positionSizer');
+const correlationManager = require('./correlationManager');
+const smartEntry = require('./smartEntry');
+const spreadFilter = require('./spreadFilter');
+const regimeDetector = require('./regimeDetector');
 
 class OrderManager {
     constructor() {
@@ -33,13 +39,13 @@ class OrderManager {
     }
 
     executeSetup(symbol, setup) {
-        // === STRICT PROTOCOL: No trades without both SL and TP ===
+        // === GATE 1: Valid SL and TP ===
         if (!setup.sl || setup.sl === 0 || !setup.tp || setup.tp === 0) {
             dashboard.logMessage(`🚫 REJECTED: ${symbol} ${setup.direction} — Missing SL or TP. SL=${setup.sl || 'NONE'} TP=${setup.tp || 'NONE'}`, 'warn');
             return;
         }
 
-        // === STRICT PROTOCOL: RR at least 1:1.5 ===
+        // === GATE 2: Minimum R:R of 1.5 ===
         const risk = Math.abs(setup.entry - setup.sl);
         const reward = Math.abs(setup.entry - setup.tp);
         if (reward < (1.5 * risk)) {
@@ -47,54 +53,100 @@ class OrderManager {
             return;
         }
 
-        // === STRICT PROTOCOL: SL must not be more than 2% from entry ===
+        // === GATE 3: SL within 2% of entry ===
         const maxSlDistance = setup.entry * 0.02;
         if (risk > maxSlDistance) {
             dashboard.logMessage(`🚫 REJECTED: ${symbol} ${setup.direction} — SL too far! Distance=${risk.toFixed(4)} Max=${maxSlDistance.toFixed(4)}`, 'warn');
             return;
         }
 
-        // === STRICT PROTOCOL: SL must be at least 1.5x ATR ===
+        // === GATE 4: SL at least 1x ATR ===
         if (setup.atr && risk < setup.atr * 1.0) {
             dashboard.logMessage(`🚫 REJECTED: ${symbol} ${setup.direction} — SL too tight! Distance=${risk.toFixed(5)} MinATR=${(setup.atr * 1.0).toFixed(5)}`, 'warn');
             return;
         }
 
-        // === RISK GUARD CHECK ===
+        // === GATE 5: Risk Guard (news, daily loss, equity curve) ===
         const riskCheck = riskGuard.canTrade(symbol, setup.direction);
         if (!riskCheck.allowed) {
             dashboard.logMessage(`🛡️ RISK GUARD: ${symbol} ${setup.direction} blocked — ${riskCheck.reason}`, 'warn');
             return;
         }
 
-        // Apply risk adjustments from risk guard
-        const adjustments = riskCheck.adjustments || {};
-        
+        // === GATE 6: Correlation Manager ===
+        const corrCheck = correlationManager.canTrade(symbol, setup.direction);
+        if (!corrCheck.allowed) {
+            dashboard.logMessage(`🔗 CORRELATION: ${symbol} ${setup.direction} blocked — ${corrCheck.reason}`, 'warn');
+            return;
+        }
+
+        // === GATE 7: Spread validation ===
+        if (setup.spread) {
+            const spreadCheck = spreadFilter.canTrade(symbol, setup.spread, risk);
+            if (!spreadCheck.allowed) {
+                dashboard.logMessage(`📊 SPREAD: ${symbol} ${setup.direction} blocked — ${spreadCheck.reason}`, 'warn');
+                return;
+            }
+        }
+
+        // === SIZING: Dynamic position sizing ===
+        const regime = regimeDetector.getRegime(symbol);
+        const sizing = positionSizer.calculate({
+            confluenceScore: setup.score || 6,
+            currentDrawdown: riskCheck.adjustments?.currentDrawdown || 0,
+            rollingWinRate: riskCheck.adjustments?.rollingWinRate || 50,
+            consecutiveWins: riskCheck.adjustments?.consecutiveWins || 0,
+            consecutiveLosses: riskCheck.adjustments?.consecutiveLosses || 0,
+            regime: regime,
+            accountBalance: riskCheck.adjustments?.accountBalance || 10000,
+            slDistance: risk,
+            symbol: symbol
+        });
+
+        if (sizing.paused) {
+            dashboard.logMessage(`⏸️ PAUSED: ${symbol} — Position sizer says NO (${sizing.reasoning.join(', ')})`, 'warn');
+            return;
+        }
+
+        // === SMART ENTRY: Determine limit vs market ===
+        const entryResult = smartEntry.calculateEntry(symbol, setup, setup.zones || {});
+
         dashboard.logMessage(
-            `✅ EXECUTING: ${symbol} ${setup.direction} @ ${setup.entry} ` +
-            `SL=${setup.sl} TP=${setup.tp} ` + 
-            `RR=1:${(reward / risk).toFixed(1)} ` +
-            `Risk: ${(adjustments.adjustedRiskPercent || 1).toFixed(1)}% (${adjustments.reason || 'standard'})`,
+            `✅ EXECUTING: ${symbol} ${setup.direction} ${entryResult.entryType} @ ${entryResult.entryPrice} ` +
+            `SL=${entryResult.adjustedSL} TP=${entryResult.adjustedTP} ` +
+            `RR=1:${(Math.abs(entryResult.entryPrice - entryResult.adjustedTP) / Math.abs(entryResult.entryPrice - entryResult.adjustedSL)).toFixed(1)} ` +
+            `Risk: ${sizing.riskPercent}% ($${sizing.riskAmount}) | Lots: ${sizing.lotSize} | ` +
+            `Entry: ${entryResult.reasoning}`,
             'info'
         );
 
-        const command = {
-            symbol: symbol,
-            type: 'MARKET',
-            direction: setup.direction,
-            volume: 0.1, // Will be recalculated by MT5 bridge based on risk
-            sl: setup.sl,
-            tp: setup.tp,
-            riskMultiplier: adjustments.riskMultiplier || 1.0
-        };
+        if (entryResult.entryType === 'MARKET') {
+            // Market order
+            const command = {
+                symbol: symbol,
+                type: 'MARKET',
+                direction: setup.direction,
+                volume: sizing.lotSize,
+                sl: entryResult.adjustedSL,
+                tp: entryResult.adjustedTP,
+                riskMultiplier: 1.0
+            };
 
-        server.pendingOrders.push(command);
+            server.pendingOrders.push(command);
+        } else {
+            // Limit order via Smart Entry
+            smartEntry.placeLimitOrder(symbol, {
+                ...entryResult,
+                adjustedTP: entryResult.adjustedTP,
+                volume: sizing.lotSize
+            });
+        }
 
         // Save to journal JSON
-        this.recordTrade({ ...setup, symbol });
+        this.recordTrade({ ...setup, symbol, lotSize: sizing.lotSize, riskPercent: sizing.riskPercent, entryType: entryResult.entryType });
 
         // Send Telegram notification
-        telegram.notifySetup(symbol, setup).catch(() => {});
+        telegram.notifySetup(symbol, { ...setup, lotSize: sizing.lotSize, riskPercent: sizing.riskPercent }).catch(() => {});
     }
 
     recordTrade(trade) {

@@ -1,5 +1,5 @@
 /**
- * APEX SMC (Smart Money Concepts) Engine v2.0
+ * APEX SMC (Smart Money Concepts) Engine v3.0
  * 
  * Full implementation of institutional trading concepts:
  * - Order Blocks (OB)
@@ -10,6 +10,16 @@
  * - Breaker Blocks
  * - Premium/Discount Zones
  * - Killzone Detection
+ * 
+ * v3.0 Advanced Additions:
+ * - Displacement Detection (institutional commitment)
+ * - Inducement Detection (retail traps)
+ * - Mitigation Blocks (partially filled OBs)
+ * - Rejection Blocks (structure level rejections)
+ * - Optimal Trade Entry (OTE - Fib 0.618-0.786)
+ * - Imbalance Stacking (FVG clusters)
+ * - Volume-Enhanced Scoring
+ * - Wick Rejection Scoring
  */
 
 class SMCDetector {
@@ -38,7 +48,13 @@ class SMCDetector {
             structure: this.analyzeStructure(parsed),
             premium_discount: this.findPremiumDiscount(parsed),
             killzone: this.detectKillzone(),
-            breakers: this.findBreakerBlocks(parsed)
+            breakers: this.findBreakerBlocks(parsed),
+            // v3.0 Advanced
+            displacement: this.detectDisplacement(parsed),
+            inducement: this.detectInducement(parsed),
+            ote: this.findOTE(parsed),
+            imbalanceStack: this.detectImbalanceStacking(parsed),
+            wickRejections: this.findWickRejections(parsed)
         };
     }
 
@@ -467,6 +483,294 @@ class SMCDetector {
         }
 
         return breakers.slice(-3);
+    }
+
+    // ======= v3.0 ADVANCED SMC CONCEPTS =======
+
+    /**
+     * Displacement Detection
+     * A single large-body candle that moves 2x+ ATR — indicates institutional commitment.
+     * Displacement candles show smart money is aggressively moving price.
+     */
+    detectDisplacement(candles) {
+        const displacements = [];
+        if (candles.length < 15) return displacements;
+
+        // Calculate ATR for reference
+        let atrSum = 0;
+        for (let i = candles.length - 15; i < candles.length - 1; i++) {
+            atrSum += candles[i].high - candles[i].low;
+        }
+        const atr = atrSum / 14;
+
+        // Check last 5 candles for displacement
+        for (let i = Math.max(1, candles.length - 5); i < candles.length; i++) {
+            const body = Math.abs(candles[i].close - candles[i].open);
+            const range = candles[i].high - candles[i].low;
+            const bodyToRange = body / (range || 0.0001); // Body should be >70% of range
+
+            if (body > atr * 2 && bodyToRange > 0.7) {
+                displacements.push({
+                    type: candles[i].close > candles[i].open ? 'bullish' : 'bearish',
+                    index: i,
+                    body: body,
+                    atrMultiple: parseFloat((body / atr).toFixed(2)),
+                    time: candles[i].time,
+                    high: candles[i].high,
+                    low: candles[i].low
+                });
+            }
+        }
+
+        return displacements;
+    }
+
+    /**
+     * Inducement Detection
+     * Minor structure breaks that trap retail traders before the real move.
+     * Look for a minor swing break followed by immediate reversal.
+     */
+    detectInducement(candles) {
+        const inducements = [];
+        if (candles.length < 10) return inducements;
+
+        const swings = this.findSwingPoints(candles);
+        const swingHighs = swings.filter(s => s.type === 'high');
+        const swingLows = swings.filter(s => s.type === 'low');
+
+        // Check for bearish inducement: price takes out a minor high then reverses down
+        for (let i = 1; i < swingHighs.length; i++) {
+            const prevHigh = swingHighs[i - 1];
+            const currHigh = swingHighs[i];
+            
+            // Minor break above previous high
+            if (currHigh.price > prevHigh.price) {
+                // Check if price reversed after the break
+                const afterIndex = currHigh.index;
+                if (afterIndex + 2 < candles.length) {
+                    const afterCandle1 = candles[afterIndex + 1];
+                    const afterCandle2 = candles[afterIndex + 2];
+                    
+                    // Strong bearish rejection after the break
+                    if (afterCandle1.close < afterCandle1.open && afterCandle2.close < afterCandle2.open) {
+                        inducements.push({
+                            type: 'bearish_inducement',
+                            level: currHigh.price,
+                            swept_level: prevHigh.price,
+                            time: candles[afterIndex].time,
+                            description: 'Minor high swept then reversed — retail longs trapped'
+                        });
+                    }
+                }
+            }
+        }
+
+        // Check for bullish inducement: price takes out a minor low then reverses up
+        for (let i = 1; i < swingLows.length; i++) {
+            const prevLow = swingLows[i - 1];
+            const currLow = swingLows[i];
+
+            if (currLow.price < prevLow.price) {
+                const afterIndex = currLow.index;
+                if (afterIndex + 2 < candles.length) {
+                    const afterCandle1 = candles[afterIndex + 1];
+                    const afterCandle2 = candles[afterIndex + 2];
+
+                    if (afterCandle1.close > afterCandle1.open && afterCandle2.close > afterCandle2.open) {
+                        inducements.push({
+                            type: 'bullish_inducement',
+                            level: currLow.price,
+                            swept_level: prevLow.price,
+                            time: candles[afterIndex].time,
+                            description: 'Minor low swept then reversed — retail shorts trapped'
+                        });
+                    }
+                }
+            }
+        }
+
+        return inducements.slice(-3);
+    }
+
+    /**
+     * Optimal Trade Entry (OTE)
+     * Fibonacci 0.618-0.786 zone within the most recent impulse leg.
+     * This is where institutional traders enter on pullbacks.
+     */
+    findOTE(candles) {
+        if (candles.length < 10) return null;
+
+        const structure = this.analyzeStructure(candles);
+        if (!structure.trend || structure.trend === 'RANGING') return null;
+
+        // Find the most recent impulse leg
+        const swings = this.findSwingPoints(candles);
+        if (swings.length < 2) return null;
+
+        let impulseLow, impulseHigh;
+
+        if (structure.trend === 'BULLISH') {
+            // Last swing low to last swing high
+            const lows = swings.filter(s => s.type === 'low');
+            const highs = swings.filter(s => s.type === 'high');
+            if (lows.length === 0 || highs.length === 0) return null;
+            
+            impulseLow = lows[lows.length - 1].price;
+            impulseHigh = highs[highs.length - 1].price;
+            if (impulseHigh <= impulseLow) return null;
+        } else {
+            const highs = swings.filter(s => s.type === 'high');
+            const lows = swings.filter(s => s.type === 'low');
+            if (lows.length === 0 || highs.length === 0) return null;
+
+            impulseHigh = highs[highs.length - 1].price;
+            impulseLow = lows[lows.length - 1].price;
+            if (impulseHigh <= impulseLow) return null;
+        }
+
+        const range = impulseHigh - impulseLow;
+        const fib618 = structure.trend === 'BULLISH' 
+            ? impulseHigh - (range * 0.618) 
+            : impulseLow + (range * 0.618);
+        const fib786 = structure.trend === 'BULLISH'
+            ? impulseHigh - (range * 0.786)
+            : impulseLow + (range * 0.786);
+
+        const currentPrice = candles[candles.length - 1].close;
+        const oteTop = Math.max(fib618, fib786);
+        const oteBottom = Math.min(fib618, fib786);
+        const inOTE = currentPrice >= oteBottom && currentPrice <= oteTop;
+
+        return {
+            trend: structure.trend,
+            impulseLow,
+            impulseHigh,
+            fib618: parseFloat(fib618.toFixed(5)),
+            fib786: parseFloat(fib786.toFixed(5)),
+            oteZone: { top: parseFloat(oteTop.toFixed(5)), bottom: parseFloat(oteBottom.toFixed(5)) },
+            currentPrice,
+            inOTE,
+            description: inOTE ? `Price IN OTE zone (${oteBottom.toFixed(5)} - ${oteTop.toFixed(5)})` : 
+                `Price outside OTE (zone: ${oteBottom.toFixed(5)} - ${oteTop.toFixed(5)})`
+        };
+    }
+
+    /**
+     * Imbalance Stacking
+     * Multiple FVGs stacked in the same direction = strong institutional interest.
+     * If 2+ bullish FVGs within 2 ATR range → very bullish signal.
+     */
+    detectImbalanceStacking(candles) {
+        const fvgs = this.findFairValueGaps(candles);
+        if (fvgs.length < 2) return { stacked: false, direction: 'NONE', count: fvgs.length };
+
+        // Calculate ATR for proximity check
+        let atrSum = 0;
+        const len = Math.min(14, candles.length - 1);
+        for (let i = candles.length - len; i < candles.length; i++) {
+            atrSum += candles[i].high - candles[i].low;
+        }
+        const atr = atrSum / len;
+
+        // Check for stacked bullish FVGs
+        const bullishFVGs = fvgs.filter(f => f.type === 'bullish');
+        const bearishFVGs = fvgs.filter(f => f.type === 'bearish');
+
+        let bullishStacked = 0;
+        let bearishStacked = 0;
+
+        // Count bullish FVGs within 2 ATR of each other
+        for (let i = 0; i < bullishFVGs.length; i++) {
+            for (let j = i + 1; j < bullishFVGs.length; j++) {
+                const distance = Math.abs(bullishFVGs[i].bottom - bullishFVGs[j].bottom);
+                if (distance < atr * 2) bullishStacked++;
+            }
+        }
+
+        for (let i = 0; i < bearishFVGs.length; i++) {
+            for (let j = i + 1; j < bearishFVGs.length; j++) {
+                const distance = Math.abs(bearishFVGs[i].top - bearishFVGs[j].top);
+                if (distance < atr * 2) bearishStacked++;
+            }
+        }
+
+        if (bullishStacked >= 1) {
+            return { stacked: true, direction: 'BULLISH', count: bullishFVGs.length, proximityPairs: bullishStacked };
+        }
+        if (bearishStacked >= 1) {
+            return { stacked: true, direction: 'BEARISH', count: bearishFVGs.length, proximityPairs: bearishStacked };
+        }
+
+        return { stacked: false, direction: 'NONE', count: fvgs.length };
+    }
+
+    /**
+     * Wick Rejection Scoring
+     * Long wicks at POI = strong rejection = institutional activity.
+     * Score wicks relative to body size and ATR.
+     */
+    findWickRejections(candles) {
+        const rejections = [];
+        if (candles.length < 5) return rejections;
+
+        // Check last 5 candles for significant wicks
+        for (let i = Math.max(0, candles.length - 5); i < candles.length; i++) {
+            const c = candles[i];
+            const body = Math.abs(c.close - c.open);
+            const range = c.high - c.low;
+            if (range === 0) continue;
+
+            const upperWick = c.high - Math.max(c.open, c.close);
+            const lowerWick = Math.min(c.open, c.close) - c.low;
+
+            // Bullish rejection: long lower wick (>= 2x body)
+            if (lowerWick > body * 2 && lowerWick > range * 0.5) {
+                rejections.push({
+                    type: 'bullish_rejection',
+                    wickSize: lowerWick,
+                    bodySize: body,
+                    ratio: parseFloat((lowerWick / (body || 0.0001)).toFixed(2)),
+                    level: c.low,
+                    time: c.time,
+                    index: i
+                });
+            }
+
+            // Bearish rejection: long upper wick (>= 2x body)
+            if (upperWick > body * 2 && upperWick > range * 0.5) {
+                rejections.push({
+                    type: 'bearish_rejection',
+                    wickSize: upperWick,
+                    bodySize: body,
+                    ratio: parseFloat((upperWick / (body || 0.0001)).toFixed(2)),
+                    level: c.high,
+                    time: c.time,
+                    index: i
+                });
+            }
+        }
+
+        return rejections;
+    }
+
+    /**
+     * Helper: Find swing points from candles
+     */
+    findSwingPoints(candles) {
+        const swings = [];
+        for (let i = 2; i < candles.length - 2; i++) {
+            // Swing high: higher than 2 candles on each side
+            if (candles[i].high > candles[i-1].high && candles[i].high > candles[i-2].high &&
+                candles[i].high > candles[i+1].high && candles[i].high > candles[i+2].high) {
+                swings.push({ type: 'high', price: candles[i].high, index: i, time: candles[i].time });
+            }
+            // Swing low: lower than 2 candles on each side
+            if (candles[i].low < candles[i-1].low && candles[i].low < candles[i-2].low &&
+                candles[i].low < candles[i+1].low && candles[i].low < candles[i+2].low) {
+                swings.push({ type: 'low', price: candles[i].low, index: i, time: candles[i].time });
+            }
+        }
+        return swings;
     }
 }
 

@@ -135,6 +135,29 @@ class AccuracyGate {
         this.stats.currentDrawdown = this.stats.peakPnL - this.stats.totalPnL;
         this.stats.maxDrawdown = Math.max(this.stats.maxDrawdown, this.stats.currentDrawdown);
 
+        // Advanced Metrics (Institutional Grade)
+        const allPnLs = this.tradeHistory.map(t => t.pnl);
+        const avgPnl = this.stats.totalPnL / this.stats.totalTrades;
+        
+        // 1. Expectancy
+        const wr = this.stats.winRate / 100;
+        this.stats.expectancy = (wr * this.stats.avgWin) - ((1 - wr) * this.stats.avgLoss);
+
+        // 2. StdDev for Sharpe/SQN
+        if (allPnLs.length > 2) {
+            const variance = allPnLs.reduce((sum, p) => sum + Math.pow(p - avgPnl, 2), 0) / allPnLs.length;
+            const stdDev = Math.sqrt(variance);
+            
+            // 3. Sharpe Ratio (simplified, assuming RFR=0)
+            this.stats.sharpeRatio = stdDev > 0 ? avgPnl / stdDev : 0;
+            
+            // 4. SQN (System Quality Number)
+            this.stats.sqn = stdDev > 0 ? (avgPnl / stdDev) * Math.sqrt(this.stats.totalTrades) : 0;
+        } else {
+            this.stats.sharpeRatio = 0;
+            this.stats.sqn = 0;
+        }
+
         // Streaks
         if (outcome === 'WIN') {
             if (this.stats.streakType === 'WIN') {

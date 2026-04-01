@@ -1,24 +1,28 @@
 /**
- * APEX Detector v2.0 — Enhanced Setup Detection
+ * APEX Detector v3.0 — Enhanced Setup Detection
  * 
- * Uses the full SMC engine + technical indicators + session awareness
+ * Uses full SMC engine + multi-timeframe analysis + regime detection
+ * + spread filter + technical indicators + session awareness
  * to find high-probability trading setups.
  * 
- * Enhanced with:
- * - Structure-aware confluence scoring (BOS/CHoCH weighting)
- * - Premium/Discount zone validation
- * - Session quality weighting
- * - ML weight integration
- * - Trade manager structure-break monitoring
+ * v3.0 Enhancements:
+ * - Multi-Timeframe confluence (HTF bias + MTF confirmation + LTF entry)
+ * - Market regime detection (trending/ranging/volatile)
+ * - Spread & microstructure filtering
+ * - Advanced SMC scoring (displacement, OTE, inducement, imbalance stacking)
+ * - Regime-aware minimum confluence thresholds
  */
 
 const smc = require('../concepts/smc');
+const mtf = require('../concepts/mtf');
 const council = require('../llm/council');
 const orderManager = require('./orderManager');
 const dashboard = require('../web/webDashboard');
 const tradeManager = require('./tradeManager');
 const riskGuard = require('./riskGuard');
 const mlLoop = require('./ml_loop');
+const regimeDetector = require('./regimeDetector');
+const spreadFilter = require('./spreadFilter');
 
 class Detector {
     constructor() {
@@ -31,20 +35,43 @@ class Detector {
         try {
             if (!candles || candles.length < 5) return;
 
-            // 1. Full SMC Zone Detection (enhanced)
+            // 1. Update spread tracking & trade manager sync
+            if (marketMeta.spread) {
+                spreadFilter.updateSpread(symbol, marketMeta.spread);
+            }
+            tradeManager.updateCandleClose(symbol, candles[candles.length - 1]);
+
+            // 2. Full SMC Zone Detection (v3.0 with advanced concepts)
             const zones = smc.detectZones(candles);
 
-            // 2. Calculate Technical Indicators
+            // 3. Calculate Technical Indicators
             const indicators = this.calculateIndicators(candles);
 
-            // 3. Calculate ATR for volatility awareness
+            // 4. Calculate ATR for volatility awareness
             const atr = this.calculateATR(candles, 14);
 
-            // 4. Enhanced Confluence Scoring (weighted by ML + structure)
-            const weights = mlLoop.getWeights();
-            const score = this.calculateConfluence(zones, indicators, candles, weights);
+            // 5. Regime Detection
+            const regime = regimeDetector.detect(symbol, candles);
 
-            // 5. Send to dashboard
+            // 6. Multi-Timeframe Analysis (if data available)
+            let mtfResult = null;
+            if (marketMeta.candles_h1 || marketMeta.candles_h4) {
+                mtfResult = mtf.analyze(symbol, {
+                    m15: candles,
+                    h1: marketMeta.candles_h1 || null,
+                    h4: marketMeta.candles_h4 || null,
+                    d1: marketMeta.candles_d1 || null
+                });
+            }
+
+            // 7. Enhanced Confluence Scoring (weighted by ML + structure + regime + MTF)
+            const weights = mlLoop.getWeights();
+            const score = this.calculateConfluence(zones, indicators, candles, weights, regime, mtfResult);
+
+            // 8. Apply regime minimum confluence threshold
+            const minScore = regime.adjustments?.minConfluence || 6;
+
+            // 9. Send to dashboard
             dashboard.sendConfluence(symbol, score.total);
             const currentPrice = candles[candles.length - 1].close;
             
@@ -53,26 +80,45 @@ class Detector {
             const session = zones.killzone?.session || 'UNKNOWN';
 
             dashboard.logMessage(
-                `${symbol}: Score ${score.total}/10 | Price=${currentPrice} | ` +
+                `${symbol}: Score ${score.total}/${minScore} min | Price=${currentPrice} | ` +
                 `Trend=${structureTrend} | Zone=${pdZone} | Session=${session} | ` +
-                `EMA20=${indicators.ema20} RSI=${indicators.rsi} ATR=${atr}`
+                `Regime=${regime.regime} | ` +
+                `${mtfResult ? 'MTF=' + mtfResult.htfBias + '(+' + mtfResult.mtfScore + ')' : 'MTF=N/A'} | ` +
+                `ATR=${atr}`
             );
 
-            // 6. Check for structure breaks against managed trades
+            // 10. Check for structure breaks against managed trades
             if (zones.structure) {
                 tradeManager.checkStructureBreaks(symbol, zones.structure);
             }
 
-            // 7. Submit to AI Council if high confluence
+            // 11. Submit to AI Council if high confluence
             const now = Date.now();
             const lastTime = this.lastAnalysisTime[symbol] || 0;
-            const minScore = 6; // Higher threshold with enhanced scoring (out of 10)
+
+            // Skip if regime says don't trade (LOW_VOLATILITY)
+            if (regime.regime === 'LOW_VOLATILITY') {
+                if (score.total >= minScore) {
+                    dashboard.logMessage(`⏸️ ${symbol}: HIGH CONFLUENCE but LOW VOLATILITY regime. Skipping.`);
+                }
+                return;
+            }
+
+            // Spread check before analysis
+            if (marketMeta.spread) {
+                const slDistance = atr * 1.5;
+                const spreadCheck = spreadFilter.canTrade(symbol, marketMeta.spread, slDistance);
+                if (!spreadCheck.allowed) {
+                    dashboard.logMessage(`📊 ${symbol}: ${spreadCheck.reason}`);
+                    return;
+                }
+            }
 
             if (score.total >= minScore && (now - lastTime) >= this.analysisInterval && !this.isAnalyzing[symbol]) {
                 this.lastAnalysisTime[symbol] = now;
                 this.isAnalyzing[symbol] = true;
 
-                dashboard.logMessage(`🔥 ${symbol}: HIGH CONFLUENCE (${score.total}/10) — Submitting to AI Council...`);
+                dashboard.logMessage(`🔥 ${symbol}: HIGH CONFLUENCE (${score.total}/${minScore}) — Submitting to AI Council... [Regime: ${regime.regime}]`);
 
                 const swings = this.findSwingPoints(candles);
 
@@ -89,7 +135,9 @@ class Detector {
                     candles: candles.slice(-20),
                     zones,
                     indicators,
-                    confluenceBreakdown: score
+                    confluenceBreakdown: score,
+                    regime,
+                    mtfAnalysis: mtfResult
                 };
 
                 setImmediate(async () => {
@@ -133,7 +181,7 @@ class Detector {
      * 
      * Each factor is weighted based on ML learning from past trades.
      */
-    calculateConfluence(zones, indicators, candles, weights = {}) {
+    calculateConfluence(zones, indicators, candles, weights = {}, regime = null, mtfResult = null) {
         let total = 0;
         const breakdown = {};
 
@@ -170,7 +218,6 @@ class Detector {
             const emaTrend = indicators.ema20 > indicators.ema50 ? 'BULLISH' : 'BEARISH';
             const structureTrend = zones.structure?.trend || 'RANGING';
             
-            // Extra point if EMA and structure agree
             if ((emaTrend === 'BULLISH' && structureTrend === 'BULLISH') || 
                 (emaTrend === 'BEARISH' && structureTrend === 'BEARISH')) {
                 const emaScore = 1.0 * (weights.emaDifference || 1);
@@ -184,11 +231,9 @@ class Detector {
 
         // 6. RSI in favorable zone (0-1 point)
         if (indicators.rsi > 30 && indicators.rsi < 70) {
-            // RSI not extreme = good for trend continuation
             total += 0.5;
             breakdown.rsi = 0.5;
         }
-        // RSI extreme with structure = even better (reversal opportunity)
         if ((indicators.rsi < 30 && zones.structure?.choch) || 
             (indicators.rsi > 70 && zones.structure?.choch)) {
             const rsiScore = 1.0 * (weights.rsiExtreme || 1);
@@ -199,7 +244,6 @@ class Detector {
         // 7. Premium/Discount zone (0-1.5 points)
         if (zones.premium_discount) {
             const pd = zones.premium_discount;
-            // Most valuable: BUY in discount or SELL in premium
             if (pd.zone === 'DISCOUNT' || pd.zone === 'PREMIUM') {
                 const pdScore = 1.5 * (weights.premiumDiscount || 1);
                 total += pdScore;
@@ -210,7 +254,7 @@ class Detector {
             }
         }
 
-        // 8. Liquidity sweep (0-1 point) — powerful confirmation
+        // 8. Liquidity sweep (0-1 point)
         if (zones.liquidity && zones.liquidity.sweeps && zones.liquidity.sweeps.length > 0) {
             const liqScore = 1.0 * (weights.liquiditySweep || 1);
             total += liqScore;
@@ -226,7 +270,6 @@ class Detector {
                 total += 0.3;
                 breakdown.session = 0.3;
             }
-            // Penalize low-quality sessions
             if (zones.killzone.quality === 'VERY_LOW') {
                 total -= 1;
                 breakdown.session = -1;
@@ -241,6 +284,64 @@ class Detector {
             if (range > 0 && body / range > 0.6) {
                 total += 0.5;
                 breakdown.candleMomentum = 0.5;
+            }
+        }
+
+        // ======= v3.0 ADVANCED CONFLUENCE FACTORS =======
+
+        // 11. Displacement detection (0-1 point) — institutional commitment
+        if (zones.displacement && zones.displacement.length > 0) {
+            total += 1.0;
+            breakdown.displacement = 1.0;
+        }
+
+        // 12. OTE zone (0-0.75 points) — optimal fib entry
+        if (zones.ote && zones.ote.inOTE) {
+            total += 0.75;
+            breakdown.ote = 0.75;
+        }
+
+        // 13. Inducement (0-0.5 points) — retail trap before real move
+        if (zones.inducement && zones.inducement.length > 0) {
+            total += 0.5;
+            breakdown.inducement = 0.5;
+        }
+
+        // 14. Imbalance stacking (0-0.75 points) — strong institutional interest
+        if (zones.imbalanceStack && zones.imbalanceStack.stacked) {
+            total += 0.75;
+            breakdown.imbalanceStack = 0.75;
+        }
+
+        // 15. Wick rejections at POI (0-0.5 points)
+        if (zones.wickRejections && zones.wickRejections.length > 0) {
+            total += 0.5;
+            breakdown.wickRejection = 0.5;
+        }
+
+        // 16. Multi-Timeframe bonus (0-3 points)
+        if (mtfResult) {
+            total += mtfResult.mtfScore;
+            breakdown.mtfAlignment = mtfResult.mtfScore;
+
+            // If HTF conflicts with trade direction, cap score
+            if (mtfResult.conflict) {
+                total = Math.min(total, 5);
+                breakdown.mtfConflict = 'CAPPED at 5';
+            }
+        }
+
+        // 17. Regime adjustment
+        if (regime && regime.adjustments) {
+            // In trending regime, boost BOS weight
+            if (regime.regime === 'TRENDING' && breakdown.bos) {
+                total += 0.5;
+                breakdown.regimeBonus = 0.5;
+            }
+            // In ranging regime, boost OB/FVG weight  
+            if (regime.regime === 'RANGING' && (breakdown.orderBlock || breakdown.fvg)) {
+                total += 0.5;
+                breakdown.regimeBonus = 0.5;
             }
         }
 

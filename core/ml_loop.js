@@ -14,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const journal = require('../db/journal');
 const dashboard = require('../web/webDashboard');
-const openrouter = require('../llm/openrouter');
+const aiRouter = require('../llm/aiRouter');
 const accuracyGate = require('../eval/accuracyGate');
 
 class MLLoop {
@@ -96,10 +96,18 @@ class MLLoop {
         // 3. Record to DB
         await this.recordToDB(tradeDetails, outcome, actualPnL);
 
-        // 4. Get LLM post-trade review (the real learning)
+        // 4. Get LLM post-trade review (the real learning) — uses background priority to save quota
         const lesson = await this.getLLMReview(tradeDetails, entryData, outcome, actualPnL);
 
-        // 5. Update intelligence weights
+        // 5. Update confidence calibration in council
+        try {
+            const council = require('../llm/council');
+            if (entryData && entryData.confidence) {
+                council.recordOutcome(entryData.confidence, outcome === 'WIN');
+            }
+        } catch (e) {}
+
+        // 6. Update intelligence weights
         this.updateWeights(tradeDetails, entryData, outcome, actualPnL);
 
         // 6. Update trade intelligence (per-symbol, per-session, patterns)
@@ -212,7 +220,7 @@ If the MFE was much higher than actual profit, note the trade management issue.
 If the MAE was close to the SL, note the entry quality issue.
 Keep lessons under 200 words. Be specific, not generic.`;
 
-            const result = await openrouter.analyze(prompt, systemPrompt);
+            const result = await aiRouter.analyze(prompt, systemPrompt, { priority: 'low', maxTokens: 300 });
             return result?.rationale || result?.lesson || null;
         } catch (e) {
             console.error('ML Loop LLM Review Error:', e.message);

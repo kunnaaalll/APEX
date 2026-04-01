@@ -33,12 +33,20 @@ class BridgeServer extends events.EventEmitter {
 
     setupRoutes() {
         this.app.post('/update', (req, res, next) => this.parseBody(req, res, next), (req, res) => {
-            const { symbol, timeframe, candles, account, positions, spread, ask, bid } = req.body || {};
+            const { symbol, timeframe, candles, account, positions, spread, ask, bid, calendar, candles_h1, candles_h4, candles_d1 } = req.body || {};
             console.log('[DEBUG] /update hit - symbol:', symbol, 'timeframe:', timeframe, 'candles:', candles ? candles.length : 0);
 
             if (symbol) {
-                this.emit('market_data', { symbol, timeframe, candles, positions, spread, ask, bid });
+                this.emit('market_data', { 
+                    symbol, timeframe, candles, positions, spread, ask, bid, 
+                    candles_h1, candles_h4, candles_d1 
+                });
                 this.emit('account_info', account);
+
+                // Forward calendar events
+                if (calendar && calendar.length > 0) {
+                    this.emit('calendar_data', calendar);
+                }
 
                 // Current price from LAST candle (chronological order: oldest→newest)
                 const price = candles && candles.length > 0 ? candles[candles.length - 1].close : null;

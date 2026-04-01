@@ -4,8 +4,12 @@ require('dotenv').config();
 class OpenRouterAdapter {
     constructor() {
         this.apiKey = process.env.OPENROUTER_API_KEY;
-        this.model = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat';
+        this.model = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat:free';
         this.apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
+    }
+
+    get available() {
+        return !!this.apiKey;
     }
 
     async analyze(prompt, systemPrompt) {
@@ -52,8 +56,13 @@ class OpenRouterAdapter {
                 return { direction: 'NEUTRAL', confidence: 0, rationale: 'Invalid JSON response' };
             }
         } catch (error) {
+            const status = error.response?.status;
+            if (status === 429) {
+                console.log('OpenRouter: Rate limited');
+                return { direction: 'NEUTRAL', confidence: 0, rationale: 'OpenRouter rate limited', _rateLimited: true };
+            }
             console.error('OpenRouter Error:', error.response?.data?.error || error.message);
-            return { direction: 'NEUTRAL', confidence: 0, rationale: 'OpenRouter unavailable' };
+            return { direction: 'NEUTRAL', confidence: 0, rationale: 'OpenRouter unavailable', _error: true };
         }
     }
 }

@@ -1,9 +1,11 @@
 /**
- * APEX v2.0 — Autonomous Price Execution Agent
+ * APEX v3.0 — Autonomous Price Execution Agent
  * 
- * Intelligent trading system that acts like a 20-year experienced trader.
- * Manages trades before, during, and after execution.
- * Learns from every trade to reach 70%+ accuracy over 1000 trades.
+ * Intelligent trading system that operates like a 20-year experienced trader.
+ * Enhanced with multi-provider AI, adversarial analysis, news filtering,
+ * and institutional-grade risk management.
+ * 
+ * Target: 70%+ accuracy over 1000 trades.
  */
 
 require('dotenv').config();
@@ -17,14 +19,26 @@ const riskGuard = require('./core/riskGuard');
 const tradeManager = require('./core/tradeManager');
 const accuracyGate = require('./eval/accuracyGate');
 const telegram = require('./notify/telegram');
+const aiRouter = require('./llm/aiRouter');
+const newsFilter = require('./core/newsFilter');
+const correlationManager = require('./core/correlationManager');
+const smartEntry = require('./core/smartEntry');
+const dailyPlanner = require('./core/dailyPlanner');
 
 async function main() {
     dashboard.logMessage('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    dashboard.logMessage('   APEX v2.0 — Intelligent Trade Manager   ');
+    dashboard.logMessage('   APEX v3.0 — Elite Trade Manager          ');
     dashboard.logMessage('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     dashboard.logMessage('🧠 Learning System: ACTIVE');
     dashboard.logMessage('📊 Trade Manager: ACTIVE');
     dashboard.logMessage('🛡️ Risk Guard: ACTIVE');
+    dashboard.logMessage('📰 News Filter: ACTIVE');
+    dashboard.logMessage('🔄 AI Router: Multi-provider failover ACTIVE');
+    dashboard.logMessage('⚔️ Adversarial Council: ACTIVE');
+    dashboard.logMessage('📐 Dynamic Position Sizer: ACTIVE');
+    dashboard.logMessage('🔗 Correlation Manager: ACTIVE');
+    dashboard.logMessage('📌 Smart Entry Engine: ACTIVE');
+    dashboard.logMessage('📋 Daily Planner: ACTIVE');
     dashboard.logMessage(`🎯 Target: ${accuracyGate.targetWinRate}%+ win rate over ${accuracyGate.targetTrades} trades`);
 
     // 0. Load existing data
@@ -32,7 +46,10 @@ async function main() {
     dashboard.updateTrades(openTrades);
     dashboard.logMessage(`Loaded ${openTrades.length} open trades from database.`);
 
-    dashboard.logMessage(`🤖 AI Engine: OpenRouter (${process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat'})`);
+    // Log AI provider availability
+    const aiStatus = aiRouter.getStatus();
+    const availableProviders = Object.values(aiStatus).filter(p => p && p.available).map(p => p.name);
+    dashboard.logMessage(`🤖 AI Providers: ${availableProviders.length > 0 ? availableProviders.join(', ') : 'None (rules-only mode)'}`);
     dashboard.logMessage(`📈 Mode: ${process.env.TRADING_MODE || 'demo'}`);
     dashboard.logMessage(`💰 Risk: ${process.env.DEFAULT_RISK_PERCENT || 1}% per trade`);
     dashboard.logMessage(`🔒 Max Trades: ${process.env.MAX_SIMULTANEOUS_TRADES || 3}`);
@@ -56,13 +73,16 @@ async function main() {
     let knownOpenPositions = {};
 
     // 2. React to New Market Data
-    watcher.on('data', ({ symbol, timeframe, candles, positions, spread, ask, bid }) => {
+    watcher.on('data', ({ symbol, timeframe, candles, positions, spread, ask, bid, candles_h1, candles_h4, candles_d1 }) => {
         dashboard.logMessage(`📡 Data: ${symbol} ${timeframe}`);
 
         // === ACTIVE TRADE MANAGEMENT (every tick) ===
         if (positions && positions.length > 0) {
             // Update risk guard with current positions
             riskGuard.updatePositions(positions);
+
+            // Update correlation manager with live positions
+            correlationManager.updatePositions(positions);
 
             // Update trade manager — handles breakeven, trailing, partials
             tradeManager.onTickUpdate(positions);
@@ -77,7 +97,9 @@ async function main() {
             const hasPendingTrade = server.pendingOrders.some(o => o.symbol === symbol);
 
             if (!hasActiveTrade && !hasPendingTrade) {
-                detector.onNewCandle(symbol, timeframe, candles, { spread, ask, bid });
+                detector.onNewCandle(symbol, timeframe, candles, { 
+                    spread, ask, bid, candles_h1, candles_h4, candles_d1 
+                });
             }
         }
 
@@ -167,10 +189,22 @@ async function main() {
         }
     });
 
+    // 3b. React to Calendar Data (news events from MT5)
+    server.on('calendar_data', (calendar) => {
+        newsFilter.updateEvents(calendar);
+        dashboard.broadcast('calendar', calendar); // Forward to dashboard UI
+    });
+
     // 4. Periodic risk status broadcast
     setInterval(() => {
         const riskStatus = riskGuard.getStatus();
         dashboard.broadcast('risk_status', riskStatus);
+
+        // Also broadcast AI router status
+        dashboard.broadcast('ai_status', aiRouter.getStatus());
+
+        // Broadcast news filter status
+        dashboard.broadcast('news_status', newsFilter.getStatus());
     }, 30000); // Every 30 seconds
 
     // 5. Periodic performance snapshot
@@ -190,12 +224,49 @@ async function main() {
         } catch (e) {}
     }, 300000); // Every 5 minutes
 
+    // 6. Daily Planner scheduled tasks (every 5 minutes check)
+    setInterval(async () => {
+        try {
+            await dailyPlanner.checkScheduledTasks();
+        } catch (e) {
+            console.error('Daily Planner Error:', e.message);
+        }
+    }, 300000); // Every 5 minutes
+
+    // 7. Smart Entry — check expired limit orders (every 30 seconds)
+    setInterval(() => {
+        smartEntry.checkExpiredOrders();
+    }, 30000);
+
+    // 8. Broadcast correlation status (every 30 seconds with other status)
+    setInterval(() => {
+        dashboard.broadcast('correlation_status', correlationManager.getStatus());
+        dashboard.broadcast('smart_entry_status', smartEntry.getStatus());
+    }, 30000);
+
     dashboard.logMessage('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    dashboard.logMessage('APEX v2.0: SYSTEM LIVE');
+    dashboard.logMessage('APEX v3.0: SYSTEM LIVE');
     dashboard.logMessage('Monitoring: ' + watcher.symbols.join(', '));
     dashboard.logMessage('Dashboard: http://localhost:3000');
     dashboard.logMessage('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     dashboard.render();
 }
+
+// Crash resilience — catch unhandled errors and keep running
+process.on('uncaughtException', (err) => {
+    console.error('APEX UNCAUGHT EXCEPTION:', err.message);
+    console.error(err.stack);
+    try {
+        dashboard.logMessage(`🚨 SYSTEM ERROR: ${err.message}. System continues running.`, 'warn');
+        telegram.send(`🚨 *APEX System Error*\n${err.message}`).catch(() => {});
+    } catch (e) {}
+});
+
+process.on('unhandledRejection', (reason) => {
+    console.error('APEX UNHANDLED REJECTION:', reason);
+    try {
+        dashboard.logMessage(`⚠️ Unhandled Promise: ${reason}`, 'warn');
+    } catch (e) {}
+});
 
 main();

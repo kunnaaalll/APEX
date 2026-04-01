@@ -7,6 +7,10 @@ class OllamaAdapter {
         this.model = process.env.OLLAMA_MODEL || 'qwen3:4b';
     }
 
+    get available() {
+        return true; // Ollama is always considered available (local)
+    }
+
     async analyze(prompt, systemPrompt) {
         try {
             const response = await axios.post(`${this.baseUrl}/api/generate`, {
