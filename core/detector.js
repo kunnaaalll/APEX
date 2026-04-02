@@ -69,8 +69,7 @@ class Detector {
             const score = this.calculateConfluence(zones, indicators, candles, weights, regime, mtfResult);
 
             // 8. Apply regime minimum confluence threshold
-            // ⚛️ ARIA V15.3 THROUGHPUT OVERRIDE: Lowered from 6.0 to 5.5 for high-velocity demo
-            const minScore = regime.adjustments?.minConfluence || 5.5;
+            const minScore = regime.adjustments?.minConfluence || 7.0;
 
             // 9. Send to dashboard
             dashboard.sendConfluence(symbol, score.total);
@@ -123,6 +122,9 @@ class Detector {
 
                 dashboard.logMessage(`🔥 ${symbol}: HIGH CONFLUENCE (${score.total}/${minScore}) — Submitting to AI Council... [Regime: ${regime.regime}]`);
 
+                // Stagger council calls: hash symbol name to spread requests over 10 seconds
+                const staggerMs = (symbol.charCodeAt(0) + symbol.charCodeAt(1)) % 10 * 1000;
+                
                 const swings = this.findSwingPoints(candles);
 
                 const analysisPacket = {
@@ -143,7 +145,7 @@ class Detector {
                     mtfAnalysis: mtfResult
                 };
 
-                setImmediate(async () => {
+                setTimeout(async () => {
                     try {
                         // 45s timeout to prevent permanent lock
                         const timeout = new Promise((_, reject) => 
@@ -178,7 +180,7 @@ class Detector {
                     } finally {
                         this.isAnalyzing[symbol] = false;
                     }
-                });
+                }, staggerMs);
             }
         } catch (err) {
             console.error(`Detector Error for ${symbol}:`, err.message);

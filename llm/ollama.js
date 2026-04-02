@@ -5,13 +5,29 @@ class OllamaAdapter {
     constructor() {
         this.baseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
         this.model = process.env.OLLAMA_MODEL || 'qwen3:4b';
+        this._available = null; // null = not checked yet
+        this._checkConnection();
+    }
+
+    async _checkConnection() {
+        try {
+            await axios.get(`${this.baseUrl}/api/tags`, { timeout: 3000 });
+            this._available = true;
+        } catch (e) {
+            this._available = false;
+            console.log('Ollama: Not available (connection refused). Skipping local model.');
+        }
     }
 
     get available() {
-        return true; // Ollama is always considered available (local)
+        return this._available === true;
     }
 
     async analyze(prompt, systemPrompt) {
+        if (!this._available) {
+            return { direction: 'NEUTRAL', confidence: 0, rationale: 'Ollama not running', _error: true };
+        }
+
         try {
             const response = await axios.post(`${this.baseUrl}/api/generate`, {
                 model: this.model,
@@ -22,9 +38,7 @@ class OllamaAdapter {
                 options: { temperature: 0.3, num_predict: 256 }
             }, { timeout: 60000 });
 
-            // qwen3 may put output in 'thinking' or 'response'
             const raw = response.data?.response || response.data?.thinking || '';
-            console.log('Ollama response:', raw.substring(0, 300));
 
             try {
                 const parsed = JSON.parse(raw.trim());
@@ -40,8 +54,8 @@ class OllamaAdapter {
                 return { direction: 'NEUTRAL', confidence: 0, rationale: raw.substring(0, 200) };
             }
         } catch (error) {
-            console.error('Ollama Error:', error.message);
-            return { direction: 'NEUTRAL', confidence: 0, rationale: 'Ollama unavailable' };
+            this._available = false; // Mark unavailable after connection failure
+            return { direction: 'NEUTRAL', confidence: 0, rationale: 'Ollama unavailable', _error: true };
         }
     }
 }
