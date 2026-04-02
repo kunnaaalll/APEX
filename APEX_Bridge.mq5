@@ -155,8 +155,8 @@ void SendUpdate()
  
    int len = StringToCharArray(json, post, 0, WHOLE_ARRAY, CP_UTF8) - 1;
    
-   // Set MT5 allowed URL in Options -> Expert Advisors!
-   res = WebRequest("POST", ServerURL, NULL, NULL, 50, post, len, result, headers);
+   // 5000ms timeout (required for stable Wine / Mac bridging)
+   res = WebRequest("POST", ServerURL, NULL, NULL, 5000, post, len, result, headers);
    
    if(res == 200)
    {
@@ -164,12 +164,20 @@ void SendUpdate()
       if(StringLen(response) > 2)
       {
          ProcessCommandsList(response);
-      }
-   }
-   else if(res == -1)
-   {
-      Print("APEX: WebRequest error. Check Options -> Expert Advisors -> Allow WebRequest for: http://localhost:3000");
-   }
+       }
+    }
+    else
+    {
+       int err = GetLastError();
+       if(res == -1)
+       {
+          Print("APEX: CRITICAL - WebRequest failed. Error ", err, ". Ensure '", ServerURL, "' is in WebRequest allowed list.");
+       }
+       else
+       {
+          Print("APEX: Connection Error - Result: ", res, " Code: ", err);
+       }
+    }
 }
  
 //+------------------------------------------------------------------+

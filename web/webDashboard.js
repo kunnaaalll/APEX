@@ -11,9 +11,9 @@ class WebDashboard extends events.EventEmitter {
     }
 
     attach(app) {
-        // ⚛️ ARIA V15.2 NEURAL PATCH: Robust JSON Parsing
-        app.use(express.json({ limit: '50mb' }));
-        app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+        // Parse JSON only for dashboard-specific routes (NOT globally — global parsing breaks the /update route for MT5)
+        const jsonParser = express.json({ limit: '50mb' });
+        const urlencodedParser = express.urlencoded({ extended: true, limit: '50mb' });
 
         const distPath = path.join(__dirname, '../web-v6/dist');
         app.use(express.static(distPath));
@@ -23,7 +23,7 @@ class WebDashboard extends events.EventEmitter {
         });
 
         // 🗣️ NEURAL COMMAND CHAT ENDPOINTS
-        app.post('/chat', async (req, res) => {
+        app.post('/chat', jsonParser, async (req, res) => {
             const { message, context } = req.body;
             if (!message) return res.status(400).json({ status: 'error', reason: 'Empty command pulse.' });
             
@@ -37,21 +37,21 @@ class WebDashboard extends events.EventEmitter {
             }
         });
 
-        app.post('/confirm', async (req, res) => {
+        app.post('/confirm', jsonParser, async (req, res) => {
             const { command } = req.body;
             const commandExpert = require('../llm/commandExpert');
             await commandExpert.executeConfirmedCommand(command);
             res.json({ status: 'ok' });
         });
 
-        app.post('/config', async (req, res) => {
+        app.post('/config', jsonParser, async (req, res) => {
             const riskGuard = require('../core/riskGuard');
             const newStatus = riskGuard.updateConfig(req.body);
             this.broadcast('risk_status', newStatus);
             res.json({ status: 'ok', config: newStatus });
         });
 
-        app.post('/strike', async (req, res) => {
+        app.post('/strike', jsonParser, async (req, res) => {
             const { symbol, direction } = req.body;
             const orderManager = require('../core/orderManager');
             

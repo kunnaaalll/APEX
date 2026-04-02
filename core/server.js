@@ -15,30 +15,29 @@ class BridgeServer extends events.EventEmitter {
         this.setupRoutes();
     }
 
-    parseBody(req, res, next) {
-        let chunks = [];
-        req.on('data', chunk => chunks.push(chunk));
-        req.on('end', () => {
-            try {
-                let raw = Buffer.concat(chunks).toString('utf8').replace(/\0/g, '').trim();
-                console.log('[DEBUG] Raw body length:', raw.length, 'First 200 chars:', raw.substring(0, 200));
-                req.body = raw.length > 0 ? JSON.parse(raw) : {};
-            } catch (e) {
-                console.log('[DEBUG] JSON parse error:', e.message);
-                req.body = {};
-            }
-            next();
-        });
-    }
 
     setupRoutes() {
-        this.app.post('/update', (req, res, next) => this.parseBody(req, res, next), (req, res) => {
-            const { symbol, timeframe, candles, account, positions, spread, ask, bid, calendar, candles_h1, candles_h4, candles_d1 } = req.body || {};
-            console.log('[DEBUG] /update hit - symbol:', symbol, 'timeframe:', timeframe, 'candles:', candles ? candles.length : 0);
+        this.app.post('/update', express.raw({ limit: '50mb', type: '*/*' }), (req, res) => {
+            // Parse raw body, stripping MQL5 null terminators
+            let body = {};
+            try {
+                const raw = req.body.toString('utf8').replace(/\0/g, '').trim();
+                body = JSON.parse(raw);
+            } catch (e) {
+                console.error(`[ERROR] JSON Parse: ${e.message}`);
+                return res.status(400).json({ status: 'error', reason: 'Invalid JSON' });
+            }
 
-            if (symbol) {
+            const { symbol, timeframe, candles, account, positions, spread, ask, bid, calendar, candles_h1, candles_h4, candles_d1 } = body;
+            
+            // Handle MQL5 string quirks (null terminators)
+            const cleanSymbol = (symbol && typeof symbol === 'string') ? symbol.replace(/\0/g, '').trim() : symbol;
+
+            if (cleanSymbol) {
+                console.log(`[DEBUG] /update: ${cleanSymbol} ${timeframe || ''} | Candles: ${candles ? candles.length : 0}`);
+                
                 this.emit('market_data', { 
-                    symbol, timeframe, candles, positions, spread, ask, bid, 
+                    symbol: cleanSymbol, timeframe, candles, positions, spread, ask, bid, 
                     candles_h1, candles_h4, candles_d1 
                 });
                 this.emit('account_info', account);
@@ -50,7 +49,7 @@ class BridgeServer extends events.EventEmitter {
 
                 // Current price from LAST candle (chronological order: oldest→newest)
                 const price = candles && candles.length > 0 ? candles[candles.length - 1].close : null;
-                webDashboard.sendMarketData({ symbol, timeframe, price });
+                webDashboard.sendMarketData({ symbol: cleanSymbol, timeframe, price });
                 if (account) webDashboard.sendAccountInfo(account);
             }
 
@@ -61,6 +60,15 @@ class BridgeServer extends events.EventEmitter {
 
         this.app.get('/status', (req, res) => {
             res.json({ status: 'running', server: 'APEX Bridge' });
+        });
+
+        // 🚨 JSON Error Handler
+        this.app.use((err, req, res, next) => {
+            if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+                console.error(`[ERROR] JSON Parsing Failed: ${err.message}`);
+                return res.status(400).json({ status: 'error', reason: 'Invalid JSON signature.' });
+            }
+            next();
         });
     }
 
