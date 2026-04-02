@@ -28,12 +28,9 @@ class Council {
     async getMarketDecision(analysisPacket) {
         console.log(`Council: Analyzing ${analysisPacket.symbol}...`);
 
-        // STAGE 1: Fast pre-filter (cheap model, saves expensive calls)
-        const shouldAnalyze = await this.preFilter(analysisPacket);
-        if (!shouldAnalyze) {
-            dashboard.logMessage(`🔍 Council Pre-Filter: ${analysisPacket.symbol} — Not worth deep analysis. Skipping.`);
-            return { direction: 'NEUTRAL', confidence: 0, rationale: 'Pre-filter rejected' };
-        }
+        // STAGE 1: Pre-filter BYPASSED — the detector's confluence scoring (5.5+ threshold)
+        // already filters aggressively. No need for a second LLM gate.
+        // const shouldAnalyze = await this.preFilter(analysisPacket);
 
         // STAGE 2: Full adversarial analysis (best available model)
         const learnedContext = await mlLoop.getLessonsForPrompt(analysisPacket.symbol);

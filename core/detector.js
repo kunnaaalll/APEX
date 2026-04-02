@@ -145,7 +145,14 @@ class Detector {
 
                 setImmediate(async () => {
                     try {
-                        const decision = await council.getMarketDecision(analysisPacket);
+                        // 45s timeout to prevent permanent lock
+                        const timeout = new Promise((_, reject) => 
+                            setTimeout(() => reject(new Error('Council timeout (45s)')), 45000)
+                        );
+                        const decision = await Promise.race([
+                            council.getMarketDecision(analysisPacket),
+                            timeout
+                        ]);
                         dashboard.logMessage(`🤖 Council: ${symbol} → ${decision.direction} (${decision.confidence}%)`);
 
                         if (decision) {
