@@ -96,11 +96,13 @@ class SpreadFilter {
         if (riskDistance > 0) {
             const spreadCostPercent = (current / riskDistance) * 100;
 
-            // ⚛️ ARIA V15.3 THROUGHPUT OVERRIDE: Relaxed from 20% to 30% for Monolith demo
-            if (spreadCostPercent > 30) {
+            // Demo mode gets relaxed spread threshold (demo brokers have wider spreads)
+            const isDemo = (process.env.TRADING_MODE || 'demo') === 'demo';
+            const maxSpreadCost = isDemo ? 60 : 30;
+            if (spreadCostPercent > maxSpreadCost) {
                 return {
                     allowed: false,
-                    reason: `Spread cost too high: ${spreadCostPercent.toFixed(1)}% of risk (spread: ${current.toFixed(5)}, risk: ${riskDistance.toFixed(5)}). Max: 30%.`,
+                    reason: `Spread cost too high: ${spreadCostPercent.toFixed(1)}% of risk (spread: ${current.toFixed(5)}, risk: ${riskDistance.toFixed(5)}). Max: ${maxSpreadCost}%.`,
                     spreadRatio: ratio,
                     spreadCostPercent
                 };

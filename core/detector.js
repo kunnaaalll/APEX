@@ -137,7 +137,7 @@ class Detector {
                     atr,
                     swingHigh: swings.high,
                     swingLow: swings.low,
-                    candles: candles.slice(-20),
+                    candles: candles.slice(-10),
                     zones,
                     indicators,
                     confluenceBreakdown: score,

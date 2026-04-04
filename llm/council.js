@@ -45,7 +45,7 @@ class Council {
         }
 
         // GATE 1: Risk score check
-        if (result.risk_score && result.risk_score >= 7) {
+        if (result.risk_score && result.risk_score >= 8) {
             dashboard.logMessage(`🛑 Council: ${analysisPacket.symbol} — Risk score ${result.risk_score}/10 too high. Blocking.`, 'warn');
             return { direction: 'NEUTRAL', confidence: 0, rationale: `Risk score too high: ${result.risk_score}/10. Bear case: ${result.bear_case || 'N/A'}` };
         }
@@ -217,8 +217,8 @@ Quality: ${killzone.quality || 'UNKNOWN'}
 Total: ${packet.confluenceBreakdown?.total || 0}/10
 Breakdown: ${JSON.stringify(packet.confluenceBreakdown?.breakdown || {})}
 
-=== PRICE ACTION (Last ${packet.candles?.length || 0} candles, oldest → newest) ===
-${packet.candles ? packet.candles.map((c, i) => `[${i + 1}] O:${c.open} H:${c.high} L:${c.low} C:${c.close}`).join('\n') : 'No candles available'}
+=== PRICE ACTION (Last ${Math.min(packet.candles?.length || 0, 10)} candles, oldest → newest) ===
+${packet.candles ? packet.candles.slice(-10).map((c, i) => `[${i + 1}] O:${c.open} H:${c.high} L:${c.low} C:${c.close}`).join('\n') : 'No candles available'}
 `;
 
         // Inject learned context
