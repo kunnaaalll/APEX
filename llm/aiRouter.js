@@ -114,6 +114,10 @@ class AIRouter {
         this.totalRequests = 0;
         this.totalFailovers = 0;
 
+        // Concurrency Queue for free-tier rate limits
+        this.queue = [];
+        this.isProcessingQueue = false;
+
         console.log('AI Router: Initialized with providers:', 
             Object.entries(this.providers)
                 .filter(([_, p]) => p.adapter.available !== false)
@@ -131,6 +135,35 @@ class AIRouter {
      * @returns {object} Analysis result
      */
     async analyze(prompt, systemPrompt, options = {}) {
+        return new Promise((resolve, reject) => {
+            this.queue.push({ prompt, systemPrompt, options, resolve, reject });
+            this.processQueue();
+        });
+    }
+
+    async processQueue() {
+        if (this.isProcessingQueue || this.queue.length === 0) return;
+        this.isProcessingQueue = true;
+
+        while (this.queue.length > 0) {
+            const req = this.queue.shift();
+            try {
+                const res = await this._analyzeInternal(req.prompt, req.systemPrompt, req.options);
+                req.resolve(res);
+            } catch (err) {
+                req.reject(err);
+            }
+
+            // Stagger multiple requests to protect free-tier limits
+            if (this.queue.length > 0) {
+                await new Promise(r => setTimeout(r, 6000)); 
+            }
+        }
+        
+        this.isProcessingQueue = false;
+    }
+
+    async _analyzeInternal(prompt, systemPrompt, options = {}) {
         this.checkDayReset();
         this.totalRequests++;
 
